@@ -153,39 +153,52 @@ fn iter(anchor: &Anchor<K>) -> Iterator<&K> {
 }
 */
 
+enum ExplorationState {
+    Unexplored,
+    YieldedLeft,
+    YieldedSelf,
+}
+
 // non-consuming iterator
 pub struct Iter<'a, K> {
-    stack: Vec<(bool, &'a BstNode<K>)>,
+    stack: Vec<(ExplorationState, &'a Anchor<K>)>,
 }
 
 impl<'a, K> Iter<'a, K> {
-    fn new(mut anchor: &'a Anchor<K>) -> Self {
-        let mut stack = Vec::new();
-        // recurse to the left-most element
-        while let Some(node) = anchor {
-            stack.push((false, &**node));
-            anchor = &node.left;
+    fn new(anchor: &'a Anchor<K>) -> Self {
+        Iter {
+            stack: vec![(ExplorationState::Unexplored, anchor)],
         }
-        Iter { stack }
     }
 }
 
 impl<'a, K> Iterator for Iter<'a, K> {
     type Item = &'a K;
-
     fn next(&mut self) -> Option<&'a K> {
-        if let Some((yielded_self, node)) = self.stack.pop() {
-            if yielded_self {
-                let mut anchor = &node.right;
-                // recurse to the left-most child
-                while let Some(node) = anchor {
-                    self.stack.push((false, node));
-                    anchor = &node.left;
+        let stack = &mut self.stack;
+        if let Some((state, anchor)) = stack.pop() {
+            match anchor {
+                None => self.next(),
+                Some(node) => {
+                    match state {
+                        ExplorationState::Unexplored => {
+                            // yield from iter(&node.left);
+                            stack.push((ExplorationState::YieldedLeft, anchor));
+                            stack.push((ExplorationState::Unexplored, &node.left));
+                            self.next()
+                        }
+                        ExplorationState::YieldedLeft => {
+                            // yield &node.key;
+                            stack.push((ExplorationState::YieldedSelf, anchor));
+                            Some(&node.key)
+                        }
+                        ExplorationState::YieldedSelf => {
+                            // yield from iter(&node.right);
+                            stack.push((ExplorationState::Unexplored, &node.right));
+                            self.next()
+                        }
+                    }
                 }
-                self.next()
-            } else {
-                self.stack.push((true, node));
-                Some(&node.key)
             }
         } else {
             None
