@@ -160,19 +160,19 @@ enum ExplorationState {
 }
 
 // non-consuming iterator
-pub struct Iter<'a, K> {
+pub struct IterRef<'a, K> {
     stack: Vec<(ExplorationState, &'a Anchor<K>)>,
 }
 
-impl<'a, K> Iter<'a, K> {
+impl<'a, K> IterRef<'a, K> {
     fn new(anchor: &'a Anchor<K>) -> Self {
-        Iter {
+        IterRef {
             stack: vec![(ExplorationState::Unexplored, anchor)],
         }
     }
 }
 
-impl<'a, K> Iterator for Iter<'a, K> {
+impl<'a, K> Iterator for IterRef<'a, K> {
     type Item = &'a K;
     fn next(&mut self) -> Option<&'a K> {
         let stack = &mut self.stack;
@@ -206,16 +206,16 @@ impl<'a, K> Iterator for Iter<'a, K> {
     }
 }
 
-impl<'a, K: Ord> IntoIterator for &'a Bst<K> {
+impl<'a, K> IntoIterator for &'a Bst<K> {
     type Item = &'a K;
-    type IntoIter = Iter<'a, K>;
+    type IntoIter = IterRef<'a, K>;
     fn into_iter(self) -> Self::IntoIter {
-        Iter::new(&self.root)
+        IterRef::new(&self.root)
     }
 }
 
 impl<K: Ord> Bst<K> {
-    pub fn iter(&self) -> Iter<K> {
+    pub fn iter(&self) -> IterRef<K> {
         self.into_iter()
     }
 }
