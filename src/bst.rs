@@ -220,6 +220,52 @@ impl<K: Ord> Bst<K> {
     }
 }
 
+// consuming iterator
+pub struct Iter<K> {
+    stack: Vec<Anchor<K>>,
+}
+
+impl<K> Iter<K> {
+    fn new(tree: Bst<K>) -> Self {
+        Iter {
+            stack: vec![tree.root],
+        }
+    }
+}
+
+impl<K> Iterator for Iter<K> {
+    type Item = K;
+    fn next(&mut self) -> Option<Self::Item> {
+        let stack = &mut self.stack;
+        if let Some(anchor) = stack.pop() {
+            match anchor {
+                None => self.next(),
+                Some(mut node) => {
+                    if let Some(left) = node.left.take() {
+                        stack.push(Some(node));
+                        stack.push(Some(left));
+                        return self.next();
+                    }
+                    if let Some(right) = node.right.take() {
+                        stack.push(Some(right));
+                    }
+                    Some(node.key)
+                }
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<K> IntoIterator for Bst<K> {
+    type Item = K;
+    type IntoIter = Iter<K>;
+    fn into_iter(self) -> Self::IntoIter {
+        Iter::new(self)
+    }
+}
+
 #[test]
 fn test() {
     let mut t: Bst<i32> = Bst::new();
@@ -250,6 +296,12 @@ fn test() {
 
     let mut v = Vec::new();
     for &x in &t {
+        v.push(x);
+    }
+    assert_eq!(v, expected);
+
+    let mut v = Vec::new();
+    for x in t {
         v.push(x);
     }
     assert_eq!(v, expected);
