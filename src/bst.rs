@@ -140,6 +140,73 @@ impl<K: Ord> Bst<K> {
     }
 }
 
+/*
+fn iter(anchor: &Anchor<K>) -> Iterator<&K> {
+    match anchor {
+        None => (),
+        Some(node) => {
+            yield from iter(&node.left);
+            yield &node.key;
+            yield from iter(&node.right);
+        },
+    }
+}
+*/
+
+// non-consuming iterator
+pub struct Iter<'a, K> {
+    stack: Vec<(bool, &'a BstNode<K>)>,
+}
+
+impl<'a, K> Iter<'a, K> {
+    fn new(mut anchor: &'a Anchor<K>) -> Self {
+        let mut stack = Vec::new();
+        // recurse to the left-most element
+        while let Some(node) = anchor {
+            stack.push((false, &**node));
+            anchor = &node.left;
+        }
+        Iter { stack }
+    }
+}
+
+impl<'a, K> Iterator for Iter<'a, K> {
+    type Item = &'a K;
+
+    fn next(&mut self) -> Option<&'a K> {
+        if let Some((yielded_self, node)) = self.stack.pop() {
+            if yielded_self {
+                let mut anchor = &node.right;
+                // recurse to the left-most child
+                while let Some(node) = anchor {
+                    self.stack.push((false, node));
+                    anchor = &node.left;
+                }
+                self.next()
+            } else {
+                self.stack.push((true, node));
+                Some(&node.key)
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, K: Ord> IntoIterator for &'a Bst<K> {
+    type Item = &'a K;
+    type IntoIter = Iter<'a, K>;
+    fn into_iter(self) -> Self::IntoIter {
+        Iter::new(&self.root)
+    }
+}
+
+impl<K: Ord> Bst<K> {
+    pub fn iter(&self) -> Iter<K> {
+        self.into_iter()
+    }
+}
+
 #[test]
 fn test() {
     let mut t: Bst<i32> = Bst::new();
@@ -161,14 +228,8 @@ fn test() {
     t.insert(13);
     t.insert(15);
 
-    t.print();
     t.remove(8);
-    t.print();
 
-    for v in 1..15 {
-        if v != 8 {
-            assert!(t.contains(v), "should contain {}", v);
-        }
-    }
-    assert!(!t.contains(8));
+    let v: Vec<i32> = t.iter().copied().collect();
+    assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]);
 }
