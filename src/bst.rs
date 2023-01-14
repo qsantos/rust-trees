@@ -230,6 +230,14 @@ fn test() {
 
     t.remove(8);
 
+    let expected = vec![1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15];
+
     let v: Vec<i32> = t.iter().copied().collect();
-    assert_eq!(v, vec![1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]);
+    assert_eq!(v, expected);
+
+    let mut v = Vec::new();
+    for &x in &t {
+        v.push(x);
+    }
+    assert_eq!(v, expected);
 }
