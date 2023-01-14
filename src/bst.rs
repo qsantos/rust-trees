@@ -140,6 +140,19 @@ impl<K: Ord> Bst<K> {
     }
 }
 
+impl<K: Ord> FromIterator<K> for Bst<K> {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = K>,
+    {
+        let mut bst = Bst::new();
+        for k in iter {
+            bst.insert(k);
+        }
+        bst
+    }
+}
+
 /*
 fn iter(anchor: &Anchor<K>) -> Iterator<&K> {
     match anchor {
@@ -268,24 +281,10 @@ impl<K> IntoIterator for Bst<K> {
 
 #[test]
 fn test() {
-    let mut t: Bst<i32> = Bst::new();
-
-    t.insert(8);
-    t.insert(4);
-    t.insert(2);
-    t.insert(1);
-    t.insert(3);
-    t.insert(6);
-    t.insert(5);
-    t.insert(7);
-
-    t.insert(12);
-    t.insert(10);
-    t.insert(9);
-    t.insert(11);
-    t.insert(14);
-    t.insert(13);
-    t.insert(15);
+    let mut t: Bst<i32> = [8, 4, 2, 1, 3, 6, 5, 7, 12, 10, 9, 11, 14, 13, 15]
+        .iter()
+        .copied()
+        .collect();
 
     t.remove(8);
 
