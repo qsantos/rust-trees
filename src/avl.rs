@@ -72,7 +72,7 @@ impl<K: std::fmt::Display> Avl<K> {
             match anchor {
                 None => println!("{}-", prefix),
                 Some(node) => {
-                    println!("{}-{}", prefix, node.key);
+                    println!("{}- {}", prefix, node.key);
                     aux(&node.children[0], indent + 1);
                     aux(&node.children[1], indent + 1);
                 }
