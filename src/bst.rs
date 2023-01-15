@@ -169,7 +169,6 @@ fn iter(anchor: &Anchor<K>) -> Iterator<&K> {
 enum ExplorationState {
     Unexplored,
     YieldedLeft,
-    YieldedSelf,
 }
 
 // non-consuming iterator
@@ -202,13 +201,9 @@ impl<'a, K> Iterator for IterRef<'a, K> {
                         }
                         ExplorationState::YieldedLeft => {
                             // yield &node.key;
-                            stack.push((ExplorationState::YieldedSelf, anchor));
-                            Some(&node.key)
-                        }
-                        ExplorationState::YieldedSelf => {
                             // yield from iter(&node.right);
                             stack.push((ExplorationState::Unexplored, &node.right));
-                            self.next()
+                            Some(&node.key)
                         }
                     }
                 }
