@@ -2,21 +2,16 @@ use std::cmp::Ordering;
 
 type Anchor<K> = Option<Box<AvlNode<K>>>;
 
-enum Balance {
-    LeftLonger,
-    RightLonger,
-    Balanced,
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum NodeDirection {
+    Left = 0,
+    Right = 1,
 }
 
 struct AvlNode<K> {
     key: K,
-    balance: Balance,
+    longer_side: Option<NodeDirection>,
     children: [Anchor<K>; 2],
-}
-
-enum NodeDirection {
-    Left = 0,
-    Right = 1,
 }
 
 impl std::ops::Not for NodeDirection {
@@ -33,10 +28,18 @@ impl<K> AvlNode<K> {
     fn new(key: K) -> Self {
         AvlNode {
             key,
-            balance: Balance::Balanced,
+            longer_side: None,
             children: [None, None],
         }
     }
+}
+
+fn rotate<K>(anchor: &mut Anchor<K>, dir: NodeDirection) {
+    let mut node = anchor.take().unwrap();
+    let mut new_root = node.children[!dir as usize].take().unwrap();
+    node.children[!dir as usize] = new_root.children[dir as usize].take();
+    new_root.children[dir as usize] = Some(node);
+    *anchor = Some(new_root);
 }
 
 impl<K: Ord> AvlNode<K> {
@@ -131,19 +134,88 @@ impl<K: Ord> Avl<K> {
     }
 
     pub fn insert(&mut self, key: K) {
-        fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) {
+        // returns whether the height has increased
+        fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
             match anchor {
-                None => *anchor = Some(Box::new(AvlNode::new(key))),
+                None => {
+                    *anchor = Some(Box::new(AvlNode::new(key)));
+                    true
+                }
                 Some(node) => {
                     let dir = node.dir(&key);
                     if let Some(dir) = dir {
-                        aux(&mut node.children[dir as usize], key);
+                        if aux(&mut node.children[dir as usize], key) {
+                            // the height has increased
+                            if let Some(longer) = node.longer_side {
+                                // the node was already unbalanced
+                                if longer == dir {
+                                    // the node has become even more unbalanced
+                                    // a rebalancing is needed
+                                    let child = node.children[dir as usize].as_mut().unwrap();
+                                    if let Some(cdir) = child.longer_side {
+                                        if cdir == dir {
+                                            // the child is unbalanced in the same direction
+                                            // this will rebalance both nodes fully
+                                            node.longer_side = None;
+                                            child.longer_side = None;
+                                            // need a single rotation
+                                            rotate(anchor, !dir);
+                                            // the height change is absorbed
+                                            false
+                                        } else {
+                                            // the child is unbalanced in the opposite direction
+                                            let grandchild =
+                                                child.children[!dir as usize].as_mut().unwrap();
+                                            // the node and child (new sides) might still be unbalanced
+                                            if let Some(gdir) = grandchild.longer_side {
+                                                if gdir == dir {
+                                                    node.longer_side = Some(!dir);
+                                                    child.longer_side = None;
+                                                } else {
+                                                    node.longer_side = None;
+                                                    child.longer_side = Some(dir);
+                                                }
+                                            } else {
+                                                node.longer_side = None;
+                                                child.longer_side = None;
+                                            }
+                                            // this will always rebalance the grandchild (the new root)
+                                            grandchild.longer_side = None;
+                                            // need two rotations
+                                            rotate(&mut node.children[dir as usize], dir);
+                                            rotate(anchor, !dir);
+                                            // the height change is absorbed
+                                            false
+                                        }
+                                    } else {
+                                        // the child is balanced
+                                        // this cannot happen during insertion
+                                        unreachable!();
+                                    }
+                                } else {
+                                    // the node has been rebalanced
+                                    node.longer_side = None;
+                                    // the height has not changed
+                                    false
+                                }
+                            } else {
+                                // the node was balanced
+                                // it becomes unbalanced
+                                node.longer_side = Some(dir);
+                                // and the height is still increased
+                                true
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
                     }
                 }
             }
         }
         aux(&mut self.root, key);
-        // self.check();
+        self.check();
     }
 
     pub fn remove(&mut self, key: K) {
@@ -295,7 +367,7 @@ impl<K> Avl<K> {
 
 #[test]
 fn test() {
-    let mut t: Avl<i32> = [8, 4, 2, 1, 3, 6, 5, 7, 12, 10, 9, 11, 14, 13, 15]
+    let mut t: Avl<i32> = [1, 2, 3, 4, 5, 6, 7, 8, 15, 14, 13, 12, 11, 10, 9]
         .iter()
         .copied()
         .collect();
