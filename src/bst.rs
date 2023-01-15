@@ -102,7 +102,7 @@ impl<K: Ord> Bst<K> {
 
     pub fn remove(&mut self, key: K) {
         fn leftmost<K>(mut node: &mut Box<BstNode<K>>) -> Box<BstNode<K>> {
-            while node.left.is_some() && node.left.as_ref().unwrap().left.is_some() {
+            while node.left.as_ref().unwrap().left.is_some() {
                 node = node.left.as_mut().unwrap();
             }
             let mut ret = node.left.take().unwrap();
