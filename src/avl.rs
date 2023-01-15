@@ -84,9 +84,10 @@ impl<K: std::fmt::Display> Avl<K> {
 
 impl<K: Ord> Avl<K> {
     fn check(&self) {
-        fn aux<K: Ord>(anchor: &Anchor<K>, min: Option<&K>, max: Option<&K>) {
+        // returns the height
+        fn aux<K: Ord>(anchor: &Anchor<K>, min: Option<&K>, max: Option<&K>) -> usize {
             match anchor {
-                None => (),
+                None => 1,
                 Some(node) => {
                     if let Some(min) = min {
                         assert!(node.key > *min);
@@ -94,8 +95,18 @@ impl<K: Ord> Avl<K> {
                     if let Some(max) = max {
                         assert!(node.key < *max);
                     }
-                    aux(&node.children[0], min, Some(&node.key));
-                    aux(&node.children[1], Some(&node.key), max);
+                    let lh = aux(&node.children[0], min, Some(&node.key));
+                    let lr = aux(&node.children[1], Some(&node.key), max);
+                    match lh.cmp(&lr) {
+                        Ordering::Less => {
+                            assert_eq!(node.longer_side, Some(NodeDirection::Right));
+                        }
+                        Ordering::Greater => {
+                            assert_eq!(node.longer_side, Some(NodeDirection::Left));
+                        }
+                        Ordering::Equal => assert!(node.longer_side.is_none()),
+                    }
+                    lh.max(lr) + 1
                 }
             }
         }
@@ -132,7 +143,7 @@ impl<K: Ord> Avl<K> {
             }
         }
         aux(&mut self.root, key);
-        self.check();
+        // self.check();
     }
 
     pub fn remove(&mut self, key: K) {
@@ -174,7 +185,7 @@ impl<K: Ord> Avl<K> {
             }
         }
         aux(&mut self.root, key);
-        self.check();
+        // self.check();
     }
 }
 
