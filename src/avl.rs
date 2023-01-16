@@ -450,3 +450,35 @@ fn test() {
     }
     assert_eq!(v, expected);
 }
+
+#[cfg(test)]
+mod tests {
+    use rand::seq::IteratorRandom;
+    use rand::{Rng, SeedableRng};
+    use std::collections::HashSet;
+
+    #[test]
+    fn big_test() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut avl = super::Avl::new();
+        let mut expected = HashSet::new();
+
+        // add some
+        for _ in 0..10000 {
+            let x: u64 = rng.gen();
+            avl.insert(x);
+            expected.insert(x);
+        }
+        let actual: HashSet<_> = avl.iter().copied().collect();
+        assert_eq!(actual, expected);
+
+        // remove some
+        for _ in 0..1000 {
+            let x: u64 = *expected.iter().choose(&mut rng).unwrap();
+            avl.remove(x);
+            expected.remove(&x);
+        }
+        let actual: HashSet<_> = avl.iter().copied().collect();
+        assert_eq!(actual, expected);
+    }
+}
