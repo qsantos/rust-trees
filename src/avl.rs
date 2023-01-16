@@ -90,7 +90,7 @@ impl<K: std::fmt::Display> Avl<K> {
 impl<K: Ord> Avl<K> {
     fn check(&self) {
         // returns the height
-        fn aux<K: Ord>(anchor: &Anchor<K>, min: Option<&K>, max: Option<&K>) -> usize {
+        fn aux<K: Ord>(anchor: &Anchor<K>, min: Option<&K>, max: Option<&K>) -> i32 {
             match anchor {
                 None => 1,
                 Some(node) => {
@@ -102,10 +102,11 @@ impl<K: Ord> Avl<K> {
                     }
                     let lh = aux(&node.children[0], min, Some(&node.key));
                     let lr = aux(&node.children[1], Some(&node.key), max);
-                    match lh.cmp(&lr) {
-                        Ordering::Less => assert_eq!(node.longer_side, NodeDirection::Right),
-                        Ordering::Greater => assert_eq!(node.longer_side, NodeDirection::Left),
-                        Ordering::Equal => assert_eq!(node.longer_side, NodeDirection::None),
+                    match lr - lh {
+                        1 => assert_eq!(node.longer_side, NodeDirection::Right),
+                        -1 => assert_eq!(node.longer_side, NodeDirection::Left),
+                        0 => assert_eq!(node.longer_side, NodeDirection::None),
+                        _ => unreachable!(),
                     }
                     lh.max(lr) + 1
                 }
