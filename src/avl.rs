@@ -128,6 +128,84 @@ impl<K: Ord> Avl<K> {
         aux(&self.root, key)
     }
 
+    // For an insertion:
+    //     - dir is the insertion direction
+    //     - the return value is true when the height is still increased after rebalancing
+    // For a deletion:
+    //      - dir is the opposite of the insertion direction
+    //      - the return value is true when the height is still decreased after rebalancing
+    fn rebalance(anchor: &mut Anchor<K>, dir: NodeDirection) -> bool {
+        let node = anchor.as_mut().unwrap();
+        match node.longer_side {
+            // the node was balanced
+            NodeDirection::None => {
+                // it becomes unbalanced
+                node.longer_side = dir;
+                // and the height is still increased (this is the only case)
+                return true;
+            }
+            // the node was already unbalanced, in the opposite direction
+            longer if longer != dir => {
+                // the node has been rebalanced
+                node.longer_side = NodeDirection::None;
+                // the height has not changed
+            }
+            // the node was already unbalanced, in the same direction
+            _ => {
+                // the node has become even more unbalanced, a rebalancing is needed
+                let child = node.children[dir as usize].as_mut().unwrap();
+                match child.longer_side {
+                    // the child is balanced
+                    NodeDirection::None => {
+                        // this will not fully rebalance the nodes
+                        node.longer_side = dir;
+                        child.longer_side = !dir;
+                        // need a single rotation
+                        rotate(anchor, !dir);
+                        // this cannot happen during insertion
+                        return true;
+                    }
+                    // the child is unbalanced in the same direction
+                    cdir if cdir == dir => {
+                        // this will rebalance both nodes fully
+                        node.longer_side = NodeDirection::None;
+                        child.longer_side = NodeDirection::None;
+                        // need a single rotation
+                        rotate(anchor, !dir);
+                        // the height change is absorbed
+                    }
+                    // the child is unbalanced in the opposite direction
+                    _ => {
+                        let grandchild = child.children[!dir as usize].as_mut().unwrap();
+                        // the node and child (new sides) still be unbalanced
+                        match grandchild.longer_side {
+                            NodeDirection::None => {
+                                node.longer_side = NodeDirection::None;
+                                child.longer_side = NodeDirection::None;
+                                // this cannot happen during insertion
+                            }
+                            gdir if gdir == dir => {
+                                node.longer_side = !dir;
+                                child.longer_side = NodeDirection::None;
+                            }
+                            _ => {
+                                node.longer_side = NodeDirection::None;
+                                child.longer_side = dir;
+                            }
+                        }
+                        // this will always rebalance the grandchild (the new root)
+                        grandchild.longer_side = NodeDirection::None;
+                        // need two rotations
+                        rotate(&mut node.children[dir as usize], dir);
+                        rotate(anchor, !dir);
+                        // the height change is absorbed
+                    }
+                }
+            }
+        }
+        false
+    }
+
     pub fn insert(&mut self, key: K) {
         // returns whether the height has increased
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
@@ -136,83 +214,16 @@ impl<K: Ord> Avl<K> {
                     *anchor = Some(Box::new(AvlNode::new(key)));
                     true
                 }
-                Some(node) => {
-                    match node.dir(&key) {
-                        NodeDirection::None => false,
-                        dir => {
-                            if aux(&mut node.children[dir as usize], key) {
-                                // the height has increased
-                                match node.longer_side {
-                                    // the node was balanced
-                                    NodeDirection::None => {
-                                        // it becomes unbalanced
-                                        node.longer_side = dir;
-                                        // and the height is still increased
-                                        true
-                                    }
-                                    // the node was already unbalanced, in the opposite direction
-                                    longer if longer != dir => {
-                                        // the node has been rebalanced
-                                        node.longer_side = NodeDirection::None;
-                                        // the height has not changed
-                                        false
-                                    }
-                                    // the node was already unbalanced, in the same direction
-                                    _ => {
-                                        // the node has become even more unbalanced, a rebalancing is needed
-                                        let child = node.children[dir as usize].as_mut().unwrap();
-                                        match child.longer_side {
-                                            // the child is balanced
-                                            NodeDirection::None => {
-                                                // this cannot happen during insertion
-                                                unreachable!();
-                                            }
-                                            // the child is unbalanced in the same direction
-                                            cdir if cdir == dir => {
-                                                // this will rebalance both nodes fully
-                                                node.longer_side = NodeDirection::None;
-                                                child.longer_side = NodeDirection::None;
-                                                // need a single rotation
-                                                rotate(anchor, !dir);
-                                                // the height change is absorbed
-                                                false
-                                            }
-                                            // the child is unbalanced in the opposite direction
-                                            _ => {
-                                                let grandchild =
-                                                    child.children[!dir as usize].as_mut().unwrap();
-                                                // the node and child (new sides) might still be unbalanced
-                                                match grandchild.longer_side {
-                                                    NodeDirection::None => {
-                                                        node.longer_side = NodeDirection::None;
-                                                        child.longer_side = NodeDirection::None;
-                                                    }
-                                                    gdir if gdir == dir => {
-                                                        node.longer_side = !dir;
-                                                        child.longer_side = NodeDirection::None;
-                                                    }
-                                                    _ => {
-                                                        node.longer_side = NodeDirection::None;
-                                                        child.longer_side = dir;
-                                                    }
-                                                }
-                                                // this will always rebalance the grandchild (the new root)
-                                                grandchild.longer_side = NodeDirection::None;
-                                                // need two rotations
-                                                rotate(&mut node.children[dir as usize], dir);
-                                                rotate(anchor, !dir);
-                                                // the height change is absorbed
-                                                false
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                false
-                            }
+                Some(node) => match node.dir(&key) {
+                    NodeDirection::None => false,
+                    dir => {
+                        if !aux(&mut node.children[dir as usize], key) {
+                            return false;
                         }
+                        // the height has increased, we need to rebalance
+                        Avl::rebalance(anchor, dir)
                     }
-                }
+                },
             }
         }
         aux(&mut self.root, key);
@@ -220,43 +231,92 @@ impl<K: Ord> Avl<K> {
     }
 
     pub fn remove(&mut self, key: K) {
-        fn leftmost<K>(mut node: &mut Box<AvlNode<K>>) -> Box<AvlNode<K>> {
+        // return the leftmost node and its depth
+        fn leftmost<K: Ord>(mut node: &mut Box<AvlNode<K>>) -> (Box<AvlNode<K>>, usize) {
+            let mut depth = 0;
             while node.children[0].as_ref().unwrap().children[0].is_some() {
                 node = node.children[0].as_mut().unwrap();
+                depth += 1;
             }
             let mut ret = node.children[0].take().unwrap();
             node.children[0] = ret.children[1].take();
-            ret
+            (ret, depth)
         }
-        fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) {
+        // returns whether the height has decreased
+        // we have replaced the leftmost node with its own right child
+        // so we need to know the depth to know where to start from
+        fn leftmost_rebalance<K: Ord>(anchor: &mut Anchor<K>, depth: usize) -> bool {
+            let node = anchor.as_mut().unwrap();
+            if depth > 0 {
+                if !leftmost_rebalance(&mut node.children[0], depth - 1) {
+                    false
+                } else {
+                    // we have reduced the height by one on the left, we need to rebalance
+                    !Avl::rebalance(anchor, NodeDirection::Right)
+                }
+            } else {
+                // we have reduced the height by one on the left, we need to rebalance
+                !Avl::rebalance(anchor, NodeDirection::Right)
+            }
+        }
+        // returns whether the height has decreased
+        fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
             match anchor {
-                None => (),
+                None => false,
                 Some(node) => match node.dir(&key) {
                     NodeDirection::None => {
                         match (node.children[0].take(), node.children[1].take()) {
-                            (None, None) => *anchor = None,
-                            (Some(left), None) => *anchor = Some(left),
-                            (None, Some(right)) => *anchor = Some(right),
+                            (None, None) => {
+                                *anchor = None;
+                                true
+                            }
+                            (Some(left), None) => {
+                                *anchor = Some(left);
+                                true
+                            }
+                            (None, Some(right)) => {
+                                *anchor = Some(right);
+                                true
+                            }
                             (Some(left), Some(mut right)) => match right.children[0] {
                                 None => {
                                     right.children[0] = Some(left);
+                                    right.longer_side = node.longer_side;
                                     *anchor = Some(right);
+                                    // we have reduced the height by one on the right, we need to rebalance
+                                    !Avl::rebalance(anchor, NodeDirection::Left)
                                 }
                                 Some(_) => {
-                                    let mut node = leftmost(&mut right);
+                                    let longer = node.longer_side;
+                                    let (mut node, depth) = leftmost(&mut right);
+                                    node.longer_side = longer;
                                     node.children[0] = Some(left);
                                     node.children[1] = Some(right);
+                                    // we might need to rebalance some nodes in the right subtree
+                                    let ret = leftmost_rebalance(&mut node.children[1], depth);
                                     *anchor = Some(node);
+                                    if ret {
+                                        // we have reduced the height by one on the right, we need to rebalance
+                                        !Avl::rebalance(anchor, NodeDirection::Left)
+                                    } else {
+                                        false
+                                    }
                                 }
                             },
                         }
                     }
-                    dir => aux(&mut node.children[dir as usize], key),
+                    dir => {
+                        if !aux(&mut node.children[dir as usize], key) {
+                            return false;
+                        }
+                        // the height has decreased, we need to rebalance
+                        !Avl::rebalance(anchor, !dir)
+                    }
                 },
             }
         }
         aux(&mut self.root, key);
-        // self.check();
+        self.check();
     }
 }
 
