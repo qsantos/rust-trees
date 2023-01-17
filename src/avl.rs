@@ -287,14 +287,13 @@ impl<K: Ord> Avl<K> {
                                     !Avl::rebalance(anchor, NodeDirection::Left)
                                 }
                                 Some(_) => {
-                                    let longer = node.longer_side;
-                                    let (mut node, depth) = leftmost(&mut right);
-                                    node.longer_side = longer;
-                                    node.children[0] = Some(left);
-                                    node.children[1] = Some(right);
+                                    let (mut new_node, depth) = leftmost(&mut right);
+                                    new_node.longer_side = node.longer_side;
+                                    new_node.children[0] = Some(left);
+                                    new_node.children[1] = Some(right);
                                     // we might need to rebalance some nodes in the right subtree
-                                    let ret = leftmost_rebalance(&mut node.children[1], depth);
-                                    *anchor = Some(node);
+                                    let ret = leftmost_rebalance(&mut new_node.children[1], depth);
+                                    *anchor = Some(new_node);
                                     if ret {
                                         // we have reduced the height by one on the right, we need to rebalance
                                         !Avl::rebalance(anchor, NodeDirection::Left)
