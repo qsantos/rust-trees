@@ -167,12 +167,9 @@ mod tests {
     fn test() {
         let mut heap = super::Heap::new();
         for v in [4, 2, 1, 3, 5, 7, 9, 6] {
-            println!("Inserting {v}");
             heap.push(v);
         }
-        while let Some(x) = heap.pop() {
-            println!("Popped {x}");
-        }
+        while let Some(_) = heap.pop() {}
     }
 
     #[test]
