@@ -52,12 +52,15 @@ impl<K: Ord> Heap<K> {
             match anchor {
                 None => 0,
                 Some(node) => {
+                    // ensure order is correct
                     if let Some(parent_key) = parent_key {
                         assert!(node.key < *parent_key);
                     }
+                    // ensure the tree is complete
                     if node.children[0].is_none() {
                         assert!(node.children[1].is_none());
                     }
+                    // recurse and return the height
                     1 + aux(&node.children[0], Some(&node.key))
                         + aux(&node.children[1], Some(&node.key))
                 }
@@ -67,8 +70,8 @@ impl<K: Ord> Heap<K> {
         assert_eq!(self.size, size);
     }
 
-    pub fn insert(&mut self, key: K) {
-        fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K, path: &[u8], depth: usize) {
+    pub fn push(&mut self, key: K) {
+        fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: &[u8], depth: usize) {
             match anchor {
                 None => {
                     *anchor = Some(Box::new(HeapNode::new(key)));
@@ -79,7 +82,7 @@ impl<K: Ord> Heap<K> {
                         b'1' => 1,
                         _ => unreachable!(),
                     };
-                    aux(&mut node.children[dir], key, path, depth + 1);
+                    bubble_up(&mut node.children[dir], key, path, depth + 1);
                     // swap if needed
                     let child = node.children[dir].as_mut().unwrap();
                     if child.key > node.key {
@@ -91,7 +94,7 @@ impl<K: Ord> Heap<K> {
         self.size += 1;
         let path = format!("{:b}", self.size);
         let path = path.as_bytes();
-        aux(&mut self.root, key, path, 1);
+        bubble_up(&mut self.root, key, path, 1);
         self.check();
     }
 
@@ -165,7 +168,7 @@ mod tests {
         let mut heap = super::Heap::new();
         for v in [4, 2, 1, 3, 5, 7, 9, 6] {
             println!("Inserting {v}");
-            heap.insert(v);
+            heap.push(v);
         }
         while let Some(x) = heap.pop() {
             println!("Popped {x}");
@@ -180,7 +183,7 @@ mod tests {
 
         for _ in 0..10000 {
             let x: u64 = rng.gen();
-            heap.insert(x);
+            heap.push(x);
             expected.push(x);
         }
         expected.sort();
