@@ -152,6 +152,119 @@ impl<K: Ord> Treap<K> {
     }
 }
 
+// non-consuming iterator
+enum ExplorationState {
+    Unexplored,
+    LeftYielded,
+}
+
+pub struct IterRef<'a, K> {
+    stack: Vec<(ExplorationState, &'a TreapNode<K>)>,
+}
+
+impl<'a, K> IterRef<'a, K> {
+    fn new(treap: &'a Treap<K>) -> Self {
+        match &treap.root {
+            None => IterRef { stack: vec![] },
+            Some(node) => IterRef {
+                stack: vec![(ExplorationState::Unexplored, node)],
+            },
+        }
+    }
+}
+
+impl<'a, K> Iterator for IterRef<'a, K> {
+    type Item = &'a K;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((state, node)) = self.stack.pop() {
+            match state {
+                ExplorationState::Unexplored => {
+                    if let Some(child) = &node.children[0] {
+                        self.stack.push((ExplorationState::LeftYielded, node));
+                        self.stack.push((ExplorationState::Unexplored, child));
+                        self.next()
+                    } else {
+                        if let Some(child) = &node.children[1] {
+                            self.stack.push((ExplorationState::Unexplored, child));
+                            Some(&node.key)
+                        } else {
+                            Some(&node.key)
+                        }
+                    }
+                }
+                ExplorationState::LeftYielded => {
+                    if let Some(child) = &node.children[1] {
+                        self.stack.push((ExplorationState::Unexplored, child));
+                        Some(&node.key)
+                    } else {
+                        Some(&node.key)
+                    }
+                }
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, K> IntoIterator for &'a Treap<K> {
+    type IntoIter = IterRef<'a, K>;
+    type Item = &'a K;
+    fn into_iter(self) -> Self::IntoIter {
+        IterRef::new(self)
+    }
+}
+
+// consuming iterator
+pub struct Iter<K> {
+    stack: Vec<Box<TreapNode<K>>>,
+}
+
+impl<K> Iter<K> {
+    fn new(treap: Treap<K>) -> Self {
+        match treap.root {
+            None => Iter { stack: vec![] },
+            Some(node) => Iter { stack: vec![node] },
+        }
+    }
+}
+
+impl<K> Iterator for Iter<K> {
+    type Item = K;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(mut node) = self.stack.pop() {
+            if let Some(child) = node.children[0].take() {
+                self.stack.push(node);
+                self.stack.push(child);
+                self.next()
+            } else {
+                let k = node.key;
+                if let Some(child) = node.children[1].take() {
+                    self.stack.push(child);
+                }
+                Some(k)
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<K> IntoIterator for Treap<K> {
+    type IntoIter = Iter<K>;
+    type Item = K;
+    fn into_iter(self) -> Self::IntoIter {
+        Iter::new(self)
+    }
+}
+
+impl<K> Treap<K> {
+    pub fn iter(&self) -> IterRef<K> {
+        self.into_iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rand::seq::IteratorRandom;
@@ -172,5 +285,36 @@ mod tests {
             treap.remove(x);
             treap.print();
         }
+    }
+
+    #[test]
+    fn big_test() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut treap = super::Treap::new();
+        let mut expected = HashSet::new();
+
+        // try to unbalance the tree
+        for x in 0..10000 {
+            treap.insert(x);
+            expected.insert(x);
+        }
+
+        // add some more
+        for _ in 0..10000 {
+            let x: u64 = rng.gen();
+            treap.insert(x);
+            expected.insert(x);
+        }
+        let actual: HashSet<_> = treap.iter().copied().collect();
+        assert_eq!(actual, expected);
+
+        // remove some
+        for _ in 0..1000 {
+            let x: u64 = *expected.iter().choose(&mut rng).unwrap();
+            treap.remove(x);
+            expected.remove(&x);
+        }
+        let actual: HashSet<_> = treap.iter().copied().collect();
+        assert_eq!(actual, expected);
     }
 }

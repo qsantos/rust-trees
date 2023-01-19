@@ -462,7 +462,13 @@ mod tests {
         let mut avl = super::Avl::new();
         let mut expected = HashSet::new();
 
-        // add some
+        // try to unbalance the tree
+        for x in 0..10000 {
+            avl.insert(x);
+            expected.insert(x);
+        }
+
+        // add some more
         for _ in 0..10000 {
             let x: u64 = rng.gen();
             avl.insert(x);
