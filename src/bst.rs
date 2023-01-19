@@ -222,7 +222,7 @@ impl<'a, K> IntoIterator for &'a Bst<K> {
     }
 }
 
-impl<K: Ord> Bst<K> {
+impl<K> Bst<K> {
     pub fn iter(&self) -> IterRef<K> {
         self.into_iter()
     }
