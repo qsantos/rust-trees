@@ -64,15 +64,9 @@ impl<K: Ord> Treap<K> {
                         assert!(node.key < *max_key);
                     }
                     // check this is a heap
-                    /* TODO
                     if let Some(parent_priority) = parent_priority {
                         assert!(node.priority < parent_priority);
                     }
-                    // check this is a complete tree
-                    if node.children[0].is_none() {
-                        assert!(node.children[1].is_none());
-                    }
-                    */
                     // recurse
                     let prio = Some(node.priority);
                     aux(&node.children[0], min_key, Some(&node.key), prio);
@@ -83,15 +77,39 @@ impl<K: Ord> Treap<K> {
         aux(&self.root, None, None, None);
     }
 
+    fn rotate(anchor: &mut Anchor<K>, dir: usize) {
+        let mut parent = anchor.take().unwrap();
+        let mut new_parent = parent.children[dir].take().unwrap();
+        assert!(new_parent.priority > parent.priority);
+        parent.children[dir] = new_parent.children[1 - dir].take();
+        new_parent.children[1 - dir] = Some(parent);
+        *anchor = Some(new_parent);
+    }
+
     pub fn insert(&mut self, key: K) {
-        fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) {
+        // returns true when we should check the heap invariant
+        fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
             match anchor {
-                None => *anchor = Some(Box::new(TreapNode::new(key))),
-                Some(node) => match key.cmp(&node.key) {
-                    Ordering::Less => aux(&mut node.children[0], key),
-                    Ordering::Greater => aux(&mut node.children[1], key),
-                    Ordering::Equal => (),
-                },
+                None => {
+                    *anchor = Some(Box::new(TreapNode::new(key)));
+                    true
+                }
+                Some(node) => {
+                    let dir = match key.cmp(&node.key) {
+                        Ordering::Less => 0,
+                        Ordering::Greater => 1,
+                        Ordering::Equal => return false,
+                    };
+                    if !aux(&mut node.children[dir], key) {
+                        return false;
+                    }
+                    if node.children[dir].as_ref().unwrap().priority > node.priority {
+                        Treap::rotate(anchor, dir);
+                        true
+                    } else {
+                        false
+                    }
+                }
             }
         }
         aux(&mut self.root, key);
@@ -275,15 +293,20 @@ mod tests {
     fn test() {
         let mut treap = super::Treap::new();
         treap.print();
+
+        // add some
         for x in [5, 4, 2, 3, 9, 6, 8] {
             println!("Inserting {x}");
             treap.insert(x);
             treap.print();
         }
+
+        // remove some
         for x in [5, 4, 2, 3, 9, 6, 8] {
             println!("Removing {x}");
             treap.remove(x);
             treap.print();
+            treap.check();
         }
     }
 
