@@ -65,7 +65,7 @@ impl<K: Ord> Treap<K> {
                     }
                     // check this is a heap
                     if let Some(parent_priority) = parent_priority {
-                        assert!(node.priority < parent_priority);
+                        assert!(node.priority <= parent_priority);
                     }
                     // recurse
                     let prio = Some(node.priority);
@@ -104,6 +104,7 @@ impl<K: Ord> Treap<K> {
                         return false;
                     }
                     if node.children[dir].as_ref().unwrap().priority > node.priority {
+                        // bubble up
                         Treap::rotate(anchor, dir);
                         true
                     } else {
@@ -131,7 +132,7 @@ impl<K: Ord> Treap<K> {
     }
 
     pub fn remove(&mut self, key: K) {
-        fn leftmost<K: Ord>(mut node: &mut TreapNode<K>) -> Box<TreapNode<K>> {
+        fn leftmost<K>(mut node: &mut TreapNode<K>) -> Box<TreapNode<K>> {
             while node.children[0].as_ref().unwrap().children[0].is_some() {
                 node = node.children[0].as_mut().unwrap();
             }
@@ -140,6 +141,30 @@ impl<K: Ord> Treap<K> {
             assert!(ret.children[0].is_none());
             assert!(ret.children[1].is_none());
             ret
+        }
+        fn bubble_down<K: Ord>(mut anchor: &mut Anchor<K>) {
+            loop {
+                let node = anchor.as_mut().unwrap();
+                let mut max_priority = node.priority;
+                let mut max_priority_dir = 2;
+                if let Some(child) = &node.children[0] {
+                    if child.priority > max_priority {
+                        max_priority = child.priority;
+                        max_priority_dir = 0;
+                    }
+                }
+                if let Some(child) = &node.children[1] {
+                    if child.priority > max_priority {
+                        // max_priority = child.priority;
+                        max_priority_dir = 1;
+                    }
+                }
+                if max_priority_dir == 2 {
+                    break;
+                }
+                Treap::rotate(anchor, max_priority_dir);
+                anchor = &mut anchor.as_mut().unwrap().children[1 - max_priority_dir];
+            }
         }
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) {
             match anchor {
@@ -155,11 +180,13 @@ impl<K: Ord> Treap<K> {
                             if right.children[0].is_none() {
                                 right.children[0] = Some(left);
                                 *anchor = Some(right);
+                                bubble_down(anchor);
                             } else {
                                 let mut new_node = leftmost(&mut right);
                                 new_node.children[0] = Some(left);
                                 new_node.children[1] = Some(right);
                                 *anchor = Some(new_node);
+                                bubble_down(anchor);
                             }
                         }
                     },
@@ -167,6 +194,7 @@ impl<K: Ord> Treap<K> {
             }
         }
         aux(&mut self.root, key);
+        self.check();
     }
 }
 
