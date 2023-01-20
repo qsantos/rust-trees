@@ -45,6 +45,22 @@ impl<K: std::fmt::Display> Heap<K> {
     }
 }
 
+/// Gives a path to the element at the given element in a complete binary tree
+///
+/// This is done by iterating over the bits of `index + 1` from the most
+/// significant bit (MSB) to the least significant bit (LSB). The leading 1 is ignored.
+///
+/// The return value can be iterated by looking iteratively at the LSB and
+/// dividing by 2. To get the bits in the right order, they are reversed, and
+/// the leading zeros are removed.
+///
+/// We remove the leading 1 by dividing by 2 after the shift to avoid shifting
+/// more than possible.
+fn binary_path_to(mut index: usize) -> usize {
+    index += 1;
+    (index.reverse_bits() >> index.leading_zeros()) / 2
+}
+
 impl<K: Ord> Heap<K> {
     fn check(&self) {
         // returns the number of nodes
@@ -71,18 +87,14 @@ impl<K: Ord> Heap<K> {
     }
 
     pub fn push(&mut self, key: K) {
-        fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: &[u8], depth: usize) {
+        fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: usize, depth: usize) {
             match anchor {
                 None => {
                     *anchor = Some(Box::new(HeapNode::new(key)));
                 }
                 Some(node) => {
-                    let dir = match path[depth] {
-                        b'0' => 0,
-                        b'1' => 1,
-                        _ => unreachable!(),
-                    };
-                    bubble_up(&mut node.children[dir], key, path, depth + 1);
+                    let dir = path % 2;
+                    bubble_up(&mut node.children[dir], key, path / 2, depth + 1);
                     // swap if needed
                     let child = node.children[dir].as_mut().unwrap();
                     if child.key > node.key {
@@ -91,10 +103,9 @@ impl<K: Ord> Heap<K> {
                 }
             }
         }
-        self.size += 1;
-        let path = format!("{:b}", self.size);
-        let path = path.as_bytes();
+        let path = binary_path_to(self.size);
         bubble_up(&mut self.root, key, path, 1);
+        self.size += 1;
         self.check();
     }
 
@@ -106,18 +117,12 @@ impl<K: Ord> Heap<K> {
     }
 
     pub fn pop(&mut self) -> Option<K> {
-        fn last_key<K>(node: &mut HeapNode<K>, path: &[u8], depth: usize) -> K {
-            let dir = match path[depth] {
-                b'0' => 0,
-                b'1' => 1,
-                _ => unreachable!(),
-            };
-            if depth == path.len() - 1 {
-                assert!(node.children[dir].as_ref().unwrap().children[0].is_none());
-                assert!(node.children[dir].as_ref().unwrap().children[1].is_none());
+        fn last_key<K>(node: &mut HeapNode<K>, path: usize) -> K {
+            let dir = path % 2;
+            if node.children[dir].as_ref().unwrap().children[0].is_none() {
                 node.children[dir].take().unwrap().key
             } else {
-                last_key(node.children[dir].as_mut().unwrap(), path, depth + 1)
+                last_key(node.children[dir].as_mut().unwrap(), path / 2)
             }
         }
         fn bubble_down<K: Ord>(node: &mut HeapNode<K>) {
@@ -144,10 +149,9 @@ impl<K: Ord> Heap<K> {
                     self.size -= 1;
                     Some(self.root.take().unwrap().key)
                 } else {
-                    let path = format!("{:b}", self.size);
-                    let path = path.as_bytes();
                     self.size -= 1;
-                    let mut ret = last_key(node, path, 1);
+                    let path = binary_path_to(self.size);
+                    let mut ret = last_key(node, path);
                     std::mem::swap(&mut ret, &mut node.key);
                     bubble_down(node);
                     Some(ret)
