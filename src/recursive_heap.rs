@@ -14,21 +14,21 @@ impl<K> Node<K> {
     }
 }
 
-pub struct RecHeap<K> {
+pub struct RecursiveHeap<K> {
     root: Anchor<K>,
     size: usize,
 }
 
-impl<K> RecHeap<K> {
+impl<K> RecursiveHeap<K> {
     pub fn new() -> Self {
-        RecHeap {
+        RecursiveHeap {
             root: None,
             size: 0,
         }
     }
 }
 
-impl<K: std::fmt::Display> RecHeap<K> {
+impl<K: std::fmt::Display> RecursiveHeap<K> {
     pub fn print(&self) {
         fn aux<K: std::fmt::Display>(anchor: &Anchor<K>, indent: usize) {
             let prefix = "    ".repeat(indent);
@@ -61,7 +61,7 @@ fn binary_path_to(mut index: usize) -> usize {
     (index.reverse_bits() >> index.leading_zeros()) / 2
 }
 
-impl<K: Ord> RecHeap<K> {
+impl<K: Ord> RecursiveHeap<K> {
     fn check(&self) {
         // returns the number of nodes
         fn aux<K: Ord>(anchor: &Anchor<K>, parent_key: Option<&K>) -> usize {
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut heap = super::RecHeap::new();
+        let mut heap = super::RecursiveHeap::new();
         for v in [4, 2, 1, 3, 5, 7, 9, 6] {
             heap.push(v);
         }
@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn big_test() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut heap = super::RecHeap::new();
+        let mut heap = super::RecursiveHeap::new();
         let mut expected = Vec::new();
 
         for _ in 0..10000 {

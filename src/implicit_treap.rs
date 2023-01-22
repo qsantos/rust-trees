@@ -18,14 +18,14 @@ impl<V> Node<V> {
     }
 }
 
-pub struct ImplTreap<V> {
+pub struct ImplicitTreap<V> {
     root: Anchor<V>,
     size: usize,
 }
 
-impl<V> ImplTreap<V> {
+impl<V> ImplicitTreap<V> {
     pub fn new() -> Self {
-        ImplTreap {
+        ImplicitTreap {
             root: None,
             size: 0,
         }
@@ -106,7 +106,7 @@ impl<V> ImplTreap<V> {
                 node.count += 1;
                 let child = node.children[dir].as_ref().unwrap();
                 if child.priority > node.priority {
-                    ImplTreap::rotate(anchor, dir);
+                    ImplicitTreap::rotate(anchor, dir);
                     true
                 } else {
                     false
@@ -155,7 +155,7 @@ impl<V> ImplTreap<V> {
                 if max_priority_dir == 2 {
                     break;
                 }
-                ImplTreap::rotate(anchor, max_priority_dir);
+                ImplicitTreap::rotate(anchor, max_priority_dir);
                 anchor = &mut anchor.as_mut().unwrap().children[1 - max_priority_dir];
             }
         }
@@ -222,7 +222,7 @@ impl<V> ImplTreap<V> {
     }
 }
 
-impl<V: std::fmt::Display> ImplTreap<V> {
+impl<V: std::fmt::Display> ImplicitTreap<V> {
     pub fn print_vec(&self) {
         fn aux<V: std::fmt::Display>(anchor: &Anchor<V>, mut index: usize) -> usize {
             match anchor {
@@ -265,7 +265,7 @@ pub struct IterRef<'a, V> {
 }
 
 impl<'a, V> IterRef<'a, V> {
-    fn new(treap: &'a ImplTreap<V>) -> Self {
+    fn new(treap: &'a ImplicitTreap<V>) -> Self {
         match &treap.root {
             None => IterRef { stack: vec![] },
             Some(node) => IterRef {
@@ -300,7 +300,7 @@ impl<'a, V> Iterator for IterRef<'a, V> {
     }
 }
 
-impl<'a, V> IntoIterator for &'a ImplTreap<V> {
+impl<'a, V> IntoIterator for &'a ImplicitTreap<V> {
     type IntoIter = IterRef<'a, V>;
     type Item = &'a V;
     fn into_iter(self) -> Self::IntoIter {
@@ -308,7 +308,7 @@ impl<'a, V> IntoIterator for &'a ImplTreap<V> {
     }
 }
 
-impl<V> ImplTreap<V> {
+impl<V> ImplicitTreap<V> {
     pub fn iter(&self) -> IterRef<V> {
         self.into_iter()
     }
@@ -332,7 +332,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut treap = super::ImplTreap::new();
+        let mut treap = super::ImplicitTreap::new();
         treap.print_tree();
         treap.print_vec();
 
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn big_test() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut treap = super::ImplTreap::new();
+        let mut treap = super::ImplicitTreap::new();
         let mut expected = Vec::new();
 
         // add some
