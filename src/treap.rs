@@ -1,16 +1,16 @@
 use std::cmp::Ordering;
 
-type Anchor<K> = Option<Box<TreapNode<K>>>;
+type Anchor<K> = Option<Box<Node<K>>>;
 
-struct TreapNode<K> {
+struct Node<K> {
     key: K,
     priority: u64,
     children: [Anchor<K>; 2],
 }
 
-impl<K> TreapNode<K> {
+impl<K> Node<K> {
     fn new(key: K) -> Self {
-        TreapNode {
+        Node {
             key,
             priority: rand::random(),
             children: [None, None],
@@ -91,7 +91,7 @@ impl<K: Ord> Treap<K> {
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
             match anchor {
                 None => {
-                    *anchor = Some(Box::new(TreapNode::new(key)));
+                    *anchor = Some(Box::new(Node::new(key)));
                     true
                 }
                 Some(node) => {
@@ -132,7 +132,7 @@ impl<K: Ord> Treap<K> {
     }
 
     pub fn remove(&mut self, key: K) {
-        fn leftmost<K>(mut node: &mut TreapNode<K>) -> Box<TreapNode<K>> {
+        fn leftmost<K>(mut node: &mut Node<K>) -> Box<Node<K>> {
             while node.children[0].as_ref().unwrap().children[0].is_some() {
                 node = node.children[0].as_mut().unwrap();
             }
@@ -205,7 +205,7 @@ enum ExplorationState {
 }
 
 pub struct IterRef<'a, K> {
-    stack: Vec<(ExplorationState, &'a TreapNode<K>)>,
+    stack: Vec<(ExplorationState, &'a Node<K>)>,
 }
 
 impl<'a, K> IterRef<'a, K> {
@@ -263,7 +263,7 @@ impl<'a, K> IntoIterator for &'a Treap<K> {
 
 // consuming iterator
 pub struct Iter<K> {
-    stack: Vec<Box<TreapNode<K>>>,
+    stack: Vec<Box<Node<K>>>,
 }
 
 impl<K> Iter<K> {
@@ -319,53 +319,53 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut treap = super::Treap::new();
-        treap.print();
+        let mut tree = super::Treap::new();
+        tree.print();
 
         // add some
         for x in [5, 4, 2, 3, 9, 6, 8] {
             println!("Inserting {x}");
-            treap.insert(x);
-            treap.print();
+            tree.insert(x);
+            tree.print();
         }
 
         // remove some
         for x in [5, 4, 2, 3, 9, 6, 8] {
             println!("Removing {x}");
-            treap.remove(x);
-            treap.print();
-            treap.check();
+            tree.remove(x);
+            tree.print();
+            tree.check();
         }
     }
 
     #[test]
     fn big_test() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut treap = super::Treap::new();
+        let mut tree = super::Treap::new();
         let mut expected = HashSet::new();
 
         // try to unbalance the tree
         for x in 0..10000 {
-            treap.insert(x);
+            tree.insert(x);
             expected.insert(x);
         }
 
         // add some more
         for _ in 0..10000 {
             let x: u64 = rng.gen();
-            treap.insert(x);
+            tree.insert(x);
             expected.insert(x);
         }
-        let actual: HashSet<_> = treap.iter().copied().collect();
+        let actual: HashSet<_> = tree.iter().copied().collect();
         assert_eq!(actual, expected);
 
         // remove some
         for _ in 0..1000 {
             let x: u64 = *expected.iter().choose(&mut rng).unwrap();
-            treap.remove(x);
+            tree.remove(x);
             expected.remove(&x);
         }
-        let actual: HashSet<_> = treap.iter().copied().collect();
+        let actual: HashSet<_> = tree.iter().copied().collect();
         assert_eq!(actual, expected);
     }
 }

@@ -1,34 +1,34 @@
-type Anchor<K> = Option<Box<HeapNode<K>>>;
+type Anchor<K> = Option<Box<Node<K>>>;
 
-struct HeapNode<K> {
+struct Node<K> {
     key: K,
     children: [Anchor<K>; 2],
 }
 
-impl<K> HeapNode<K> {
+impl<K> Node<K> {
     fn new(key: K) -> Self {
-        HeapNode {
+        Node {
             key,
             children: [None, None],
         }
     }
 }
 
-pub struct Heap<K> {
+pub struct RecHeap<K> {
     root: Anchor<K>,
     size: usize,
 }
 
-impl<K> Heap<K> {
+impl<K> RecHeap<K> {
     pub fn new() -> Self {
-        Heap {
+        RecHeap {
             root: None,
             size: 0,
         }
     }
 }
 
-impl<K: std::fmt::Display> Heap<K> {
+impl<K: std::fmt::Display> RecHeap<K> {
     pub fn print(&self) {
         fn aux<K: std::fmt::Display>(anchor: &Anchor<K>, indent: usize) {
             let prefix = "    ".repeat(indent);
@@ -61,7 +61,7 @@ fn binary_path_to(mut index: usize) -> usize {
     (index.reverse_bits() >> index.leading_zeros()) / 2
 }
 
-impl<K: Ord> Heap<K> {
+impl<K: Ord> RecHeap<K> {
     fn check(&self) {
         // returns the number of nodes
         fn aux<K: Ord>(anchor: &Anchor<K>, parent_key: Option<&K>) -> usize {
@@ -90,7 +90,7 @@ impl<K: Ord> Heap<K> {
         fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: usize, depth: usize) {
             match anchor {
                 None => {
-                    *anchor = Some(Box::new(HeapNode::new(key)));
+                    *anchor = Some(Box::new(Node::new(key)));
                 }
                 Some(node) => {
                     let dir = path % 2;
@@ -117,7 +117,7 @@ impl<K: Ord> Heap<K> {
     }
 
     pub fn pop(&mut self) -> Option<K> {
-        fn last_key<K>(node: &mut HeapNode<K>, path: usize) -> K {
+        fn last_key<K>(node: &mut Node<K>, path: usize) -> K {
             let dir = path % 2;
             if node.children[dir].as_ref().unwrap().children[0].is_none() {
                 node.children[dir].take().unwrap().key
@@ -125,7 +125,7 @@ impl<K: Ord> Heap<K> {
                 last_key(node.children[dir].as_mut().unwrap(), path / 2)
             }
         }
-        fn bubble_down<K: Ord>(node: &mut HeapNode<K>) {
+        fn bubble_down<K: Ord>(node: &mut Node<K>) {
             let mut biggest_dir = 2;
             let mut biggest = &node.key;
             for dir in [0, 1] {
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut heap = super::Heap::new();
+        let mut heap = super::RecHeap::new();
         for v in [4, 2, 1, 3, 5, 7, 9, 6] {
             heap.push(v);
         }
@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn big_test() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut heap = super::Heap::new();
+        let mut heap = super::RecHeap::new();
         let mut expected = Vec::new();
 
         for _ in 0..10000 {

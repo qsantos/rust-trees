@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-type Anchor<K> = Option<Box<AvlNode<K>>>;
+type Anchor<K> = Option<Box<Node<K>>>;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum NodeDirection {
@@ -9,7 +9,7 @@ enum NodeDirection {
     None,
 }
 
-struct AvlNode<K> {
+struct Node<K> {
     key: K,
     longer_side: NodeDirection,
     children: [Anchor<K>; 2],
@@ -26,9 +26,9 @@ impl std::ops::Not for NodeDirection {
     }
 }
 
-impl<K> AvlNode<K> {
+impl<K> Node<K> {
     fn new(key: K) -> Self {
-        AvlNode {
+        Node {
             key,
             longer_side: NodeDirection::None,
             children: [None, None],
@@ -44,7 +44,7 @@ fn rotate<K>(anchor: &mut Anchor<K>, dir: NodeDirection) {
     *anchor = Some(new_root);
 }
 
-impl<K: Ord> AvlNode<K> {
+impl<K: Ord> Node<K> {
     fn dir(&self, key: &K) -> NodeDirection {
         match key.cmp(&self.key) {
             Ordering::Less => NodeDirection::Left,
@@ -211,7 +211,7 @@ impl<K: Ord> Avl<K> {
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
             match anchor {
                 None => {
-                    *anchor = Some(Box::new(AvlNode::new(key)));
+                    *anchor = Some(Box::new(Node::new(key)));
                     true
                 }
                 Some(node) => match node.dir(&key) {
@@ -232,7 +232,7 @@ impl<K: Ord> Avl<K> {
 
     pub fn remove(&mut self, key: K) {
         // return the leftmost node and its depth
-        fn leftmost<K: Ord>(mut node: &mut Box<AvlNode<K>>) -> (Box<AvlNode<K>>, usize) {
+        fn leftmost<K: Ord>(mut node: &mut Box<Node<K>>) -> (Box<Node<K>>, usize) {
             let mut depth = 0;
             while node.children[0].as_ref().unwrap().children[0].is_some() {
                 node = node.children[0].as_mut().unwrap();
@@ -459,31 +459,31 @@ mod tests {
     #[test]
     fn big_test() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut avl = super::Avl::new();
+        let mut tree = super::Avl::new();
         let mut expected = HashSet::new();
 
         // try to unbalance the tree
         for x in 0..10000 {
-            avl.insert(x);
+            tree.insert(x);
             expected.insert(x);
         }
 
         // add some more
         for _ in 0..10000 {
             let x: u64 = rng.gen();
-            avl.insert(x);
+            tree.insert(x);
             expected.insert(x);
         }
-        let actual: HashSet<_> = avl.iter().copied().collect();
+        let actual: HashSet<_> = tree.iter().copied().collect();
         assert_eq!(actual, expected);
 
         // remove some
         for _ in 0..1000 {
             let x: u64 = *expected.iter().choose(&mut rng).unwrap();
-            avl.remove(x);
+            tree.remove(x);
             expected.remove(&x);
         }
-        let actual: HashSet<_> = avl.iter().copied().collect();
+        let actual: HashSet<_> = tree.iter().copied().collect();
         assert_eq!(actual, expected);
     }
 }

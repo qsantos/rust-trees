@@ -1,15 +1,15 @@
-type Anchor<V> = Option<Box<ImplTreapNode<V>>>;
+type Anchor<V> = Option<Box<Node<V>>>;
 
-struct ImplTreapNode<V> {
+struct Node<V> {
     value: V,
     priority: u64,
     count: usize,
     children: [Anchor<V>; 2],
 }
 
-impl<V> ImplTreapNode<V> {
+impl<V> Node<V> {
     fn new(value: V) -> Self {
-        ImplTreapNode {
+        Node {
             value,
             priority: rand::random(),
             count: 1,
@@ -83,7 +83,7 @@ impl<V> ImplTreap<V> {
                 0
             };
             if index == current_index {
-                let mut new_node = Box::new(ImplTreapNode::new(value));
+                let mut new_node = Box::new(Node::new(value));
                 if let Some(mut node) = anchor.take() {
                     new_node.children[0] = node.children[0].take();
                     new_node.children[1] = Some(node);
@@ -122,7 +122,7 @@ impl<V> ImplTreap<V> {
     }
 
     pub fn remove(&mut self, index: usize) -> V {
-        fn leftmost<V>(mut node: &mut ImplTreapNode<V>) -> Box<ImplTreapNode<V>> {
+        fn leftmost<V>(mut node: &mut Node<V>) -> Box<Node<V>> {
             if node.children[0].as_ref().unwrap().children[0].is_some() {
                 let ret = leftmost(node.children[0].as_mut().unwrap());
                 node.count -= 1;
@@ -261,7 +261,7 @@ enum ExplorationState {
 }
 
 pub struct IterRef<'a, V> {
-    stack: Vec<(ExplorationState, &'a ImplTreapNode<V>)>,
+    stack: Vec<(ExplorationState, &'a Node<V>)>,
 }
 
 impl<'a, V> IterRef<'a, V> {
@@ -313,6 +313,18 @@ impl<V> ImplTreap<V> {
         self.into_iter()
     }
 }
+
+/*
+impl<V> std::ops::Index<usize> for ImplTreap<V> {
+    type Output = V;
+
+    fn index(&self, index: usize) -> &Self::Output {}
+}
+
+impl<V> std::ops::IndexMut<usize> for ImplTreap<V> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {}
+}
+*/
 
 #[cfg(test)]
 mod tests {
