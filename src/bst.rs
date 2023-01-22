@@ -4,16 +4,14 @@ type Anchor<K> = Option<Box<BstNode<K>>>;
 
 struct BstNode<K> {
     key: K,
-    left: Anchor<K>,
-    right: Anchor<K>,
+    children: [Anchor<K>; 2],
 }
 
 impl<K> BstNode<K> {
     fn new(key: K) -> Self {
         BstNode {
             key,
-            left: None,
-            right: None,
+            children: [None, None],
         }
     }
 }
@@ -42,8 +40,8 @@ impl<K: std::fmt::Display> Bst<K> {
                 None => println!("{}- ", prefix),
                 Some(node) => {
                     println!("{}- {}", prefix, node.key);
-                    aux(&node.left, indent + 1);
-                    aux(&node.right, indent + 1);
+                    aux(&node.children[0], indent + 1);
+                    aux(&node.children[1], indent + 1);
                 }
             }
         }
@@ -63,8 +61,8 @@ impl<K: Ord> Bst<K> {
                     if let Some(max) = max {
                         assert!(node.key < *max);
                     }
-                    aux(&node.left, min, Some(&node.key));
-                    aux(&node.right, Some(&node.key), max);
+                    aux(&node.children[0], min, Some(&node.key));
+                    aux(&node.children[1], Some(&node.key), max);
                 }
             }
         }
@@ -76,8 +74,8 @@ impl<K: Ord> Bst<K> {
             match anchor {
                 None => *anchor = Some(Box::new(BstNode::new(key))),
                 Some(node) => match key.cmp(&node.key) {
-                    Ordering::Less => aux(&mut node.left, key),
-                    Ordering::Greater => aux(&mut node.right, key),
+                    Ordering::Less => aux(&mut node.children[0], key),
+                    Ordering::Greater => aux(&mut node.children[1], key),
                     Ordering::Equal => (),
                 },
             }
@@ -91,8 +89,8 @@ impl<K: Ord> Bst<K> {
             match anchor {
                 None => false,
                 Some(node) => match key.cmp(&node.key) {
-                    Ordering::Less => aux(&node.left, key),
-                    Ordering::Greater => aux(&node.right, key),
+                    Ordering::Less => aux(&node.children[0], key),
+                    Ordering::Greater => aux(&node.children[1], key),
                     Ordering::Equal => true,
                 },
             }
@@ -102,11 +100,11 @@ impl<K: Ord> Bst<K> {
 
     pub fn remove(&mut self, key: K) {
         fn leftmost<K>(mut node: &mut Box<BstNode<K>>) -> Box<BstNode<K>> {
-            while node.left.as_ref().unwrap().left.is_some() {
-                node = node.left.as_mut().unwrap();
+            while node.children[0].as_ref().unwrap().children[0].is_some() {
+                node = node.children[0].as_mut().unwrap();
             }
-            let mut ret = node.left.take().unwrap();
-            node.left = ret.right.take();
+            let mut ret = node.children[0].take().unwrap();
+            node.children[0] = ret.children[1].take();
             ret
         }
 
@@ -114,20 +112,20 @@ impl<K: Ord> Bst<K> {
             match anchor {
                 None => (),
                 Some(node) => match key.cmp(&node.key) {
-                    Ordering::Less => aux(&mut node.left, key),
-                    Ordering::Greater => aux(&mut node.right, key),
-                    Ordering::Equal => match (node.left.take(), node.right.take()) {
+                    Ordering::Less => aux(&mut node.children[0], key),
+                    Ordering::Greater => aux(&mut node.children[1], key),
+                    Ordering::Equal => match (node.children[0].take(), node.children[1].take()) {
                         (None, None) => *anchor = None,
                         (Some(left), None) => *anchor = Some(left),
                         (None, Some(right)) => *anchor = Some(right),
                         (Some(left), Some(mut right)) => {
-                            if right.left.is_none() {
-                                right.left = Some(left);
+                            if right.children[0].is_none() {
+                                right.children[0] = Some(left);
                                 *anchor = Some(right);
                             } else {
                                 let mut node = leftmost(&mut right);
-                                node.left = Some(left);
-                                node.right = Some(right);
+                                node.children[0] = Some(left);
+                                node.children[1] = Some(right);
                                 *anchor = Some(node);
                             }
                         }
@@ -158,9 +156,9 @@ fn iter(anchor: &Anchor<K>) -> Iterator<&K> {
     match anchor {
         None => (),
         Some(node) => {
-            yield from iter(&node.left);
+            yield from iter(&node.children[0]);
             yield &node.key;
-            yield from iter(&node.right);
+            yield from iter(&node.children[1]);
         },
     }
 }
@@ -194,15 +192,15 @@ impl<'a, K> Iterator for IterRef<'a, K> {
                 Some(node) => {
                     match state {
                         ExplorationState::Unexplored => {
-                            // yield from iter(&node.left);
+                            // yield from iter(&node.children[0]);
                             stack.push((ExplorationState::YieldedLeft, anchor));
-                            stack.push((ExplorationState::Unexplored, &node.left));
+                            stack.push((ExplorationState::Unexplored, &node.children[0]));
                             self.next()
                         }
                         ExplorationState::YieldedLeft => {
                             // yield &node.key;
-                            // yield from iter(&node.right);
-                            stack.push((ExplorationState::Unexplored, &node.right));
+                            // yield from iter(&node.children[1]);
+                            stack.push((ExplorationState::Unexplored, &node.children[1]));
                             Some(&node.key)
                         }
                     }
@@ -249,12 +247,12 @@ impl<K> Iterator for Iter<K> {
             match anchor {
                 None => self.next(),
                 Some(mut node) => {
-                    if let Some(left) = node.left.take() {
+                    if let Some(left) = node.children[0].take() {
                         stack.push(Some(node));
                         stack.push(Some(left));
                         return self.next();
                     }
-                    if let Some(right) = node.right.take() {
+                    if let Some(right) = node.children[1].take() {
                         stack.push(Some(right));
                     }
                     Some(node.key)
