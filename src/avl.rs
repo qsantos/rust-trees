@@ -378,6 +378,12 @@ impl<'a, K> IntoIterator for &'a Avl<K> {
     }
 }
 
+impl<K> Avl<K> {
+    pub fn iter(&self) -> IterRef<K> {
+        self.into_iter()
+    }
+}
+
 // consuming iterator
 
 pub struct Iter<K> {
@@ -414,12 +420,6 @@ impl<K> IntoIterator for Avl<K> {
         Iter {
             stack: vec![self.root],
         }
-    }
-}
-
-impl<K> Avl<K> {
-    pub fn iter(&self) -> IterRef<K> {
-        self.into_iter()
     }
 }
 
