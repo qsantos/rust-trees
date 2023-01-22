@@ -120,13 +120,105 @@ impl<V> ImplTreap<V> {
         self.insert(self.size, value);
     }
 
-    /*
-    pub fn remove(&mut self, index: usize) -> V {}
-
-    pub fn pop(&mut self) -> V {
-        self.remove(self.size - 1)
+    pub fn remove(&mut self, index: usize) -> V {
+        fn leftmost<V>(mut node: &mut ImplTreapNode<V>) -> Box<ImplTreapNode<V>> {
+            if node.children[0].as_ref().unwrap().children[0].is_some() {
+                let ret = leftmost(node.children[0].as_mut().unwrap());
+                node.count -= 1;
+                ret
+            } else {
+                let mut ret = node.children[0].take().unwrap();
+                assert!(ret.children[0].is_none());
+                node.count -= 1;
+                node.children[0] = ret.children[1].take();
+                ret
+            }
+        }
+        fn bubble_down<V>(mut anchor: &mut Anchor<V>) {
+            loop {
+                let node = anchor.as_mut().unwrap();
+                let mut max_priority = node.priority;
+                let mut max_priority_dir = 2;
+                if let Some(child) = &node.children[0] {
+                    if child.priority > max_priority {
+                        max_priority = child.priority;
+                        max_priority_dir = 0;
+                    }
+                }
+                if let Some(child) = &node.children[1] {
+                    if child.priority > max_priority {
+                        // max_priority = child.priority;
+                        max_priority_dir = 1;
+                    }
+                }
+                if max_priority_dir == 2 {
+                    break;
+                }
+                ImplTreap::rotate(anchor, max_priority_dir);
+                anchor = &mut anchor.as_mut().unwrap().children[1 - max_priority_dir];
+            }
+        }
+        fn aux<V>(anchor: &mut Anchor<V>, mut index: usize) -> V {
+            match anchor {
+                None => unreachable!(),
+                Some(node) => {
+                    let current_index = if let Some(child) = &node.children[0] {
+                        child.count
+                    } else {
+                        0
+                    };
+                    if index == current_index {
+                        let mut node = anchor.take().unwrap();
+                        let ret = node.value;
+                        match (node.children[0].take(), node.children[1].take()) {
+                            (None, None) => (),
+                            (Some(child), None) | (None, Some(child)) => *anchor = Some(child),
+                            (Some(left), Some(mut right)) => match right.children[0] {
+                                None => {
+                                    right.children[0] = Some(left);
+                                    right.count = node.count - 1;
+                                    *anchor = Some(right);
+                                    bubble_down(anchor);
+                                }
+                                Some(_) => {
+                                    let mut new_node = leftmost(&mut right);
+                                    new_node.count = node.count - 1;
+                                    new_node.children[0] = Some(left);
+                                    new_node.children[1] = Some(right);
+                                    *anchor = Some(new_node);
+                                    bubble_down(anchor);
+                                }
+                            },
+                        }
+                        ret
+                    } else {
+                        let dir = if index < current_index {
+                            0
+                        } else {
+                            // index > current_index
+                            index -= current_index + 1;
+                            1
+                        };
+                        let ret = aux(&mut node.children[dir], index);
+                        node.count -= 1;
+                        ret
+                    }
+                }
+            }
+        }
+        assert!(index < self.size);
+        let ret = aux(&mut self.root, index);
+        self.size -= 1;
+        ret
     }
-    */
+
+    pub fn pop(&mut self) -> Option<V> {
+        if self.size == 0 {
+            None
+        } else {
+            Some(self.remove(self.size - 1))
+        }
+    }
 }
 
 impl<V: std::fmt::Display> ImplTreap<V> {
@@ -172,6 +264,13 @@ mod tests {
         for i in 1..10 {
             println!("Inserting {i}");
             treap.push(i);
+            treap.print_tree();
+            treap.print_vec();
+            treap.check();
+        }
+
+        while let Some(x) = treap.pop() {
+            println!("Removed {x:?}");
             treap.print_tree();
             treap.print_vec();
             treap.check();
