@@ -254,8 +254,70 @@ impl<V: std::fmt::Display> ImplTreap<V> {
     }
 }
 
+// non-consuming iterator
+enum ExplorationState {
+    Unexplored,
+    LeftYielded,
+}
+
+pub struct IterRef<'a, V> {
+    stack: Vec<(ExplorationState, &'a ImplTreapNode<V>)>,
+}
+
+impl<'a, V> IterRef<'a, V> {
+    fn new(treap: &'a ImplTreap<V>) -> Self {
+        match &treap.root {
+            None => IterRef { stack: vec![] },
+            Some(node) => IterRef {
+                stack: vec![(ExplorationState::Unexplored, node)],
+            },
+        }
+    }
+}
+
+impl<'a, V> Iterator for IterRef<'a, V> {
+    type Item = &'a V;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((state, node)) = self.stack.pop() {
+            match state {
+                ExplorationState::Unexplored => {
+                    self.stack.push((ExplorationState::LeftYielded, node));
+                    if let Some(child) = &node.children[0] {
+                        self.stack.push((ExplorationState::Unexplored, child));
+                    }
+                    self.next()
+                }
+                ExplorationState::LeftYielded => {
+                    if let Some(child) = &node.children[1] {
+                        self.stack.push((ExplorationState::Unexplored, child));
+                    }
+                    Some(&node.value)
+                }
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, V> IntoIterator for &'a ImplTreap<V> {
+    type IntoIter = IterRef<'a, V>;
+    type Item = &'a V;
+    fn into_iter(self) -> Self::IntoIter {
+        IterRef::new(self)
+    }
+}
+
+impl<V> ImplTreap<V> {
+    pub fn iter(&self) -> IterRef<V> {
+        self.into_iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use rand::{Rng, SeedableRng};
+
     #[test]
     fn test() {
         let mut treap = super::ImplTreap::new();
@@ -276,5 +338,34 @@ mod tests {
             treap.print_vec();
             treap.check();
         }
+    }
+
+    #[test]
+    fn big_test() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut treap = super::ImplTreap::new();
+        let mut expected = Vec::new();
+
+        // add some
+        for _ in 0..10000 {
+            let x: u64 = rng.gen();
+            println!("Pushing {x}");
+            treap.push(x);
+            treap.check();
+            expected.push(x);
+        }
+        let actual: Vec<_> = treap.iter().copied().collect();
+        assert_eq!(actual, expected);
+
+        // remove some
+        for _ in 0..1000 {
+            let i = rng.gen_range(0..expected.len() - 1);
+            println!("Removing at index {i}");
+            treap.remove(i);
+            treap.check();
+            expected.remove(i);
+        }
+        let actual: Vec<_> = treap.iter().copied().collect();
+        assert_eq!(actual, expected);
     }
 }
