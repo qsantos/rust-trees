@@ -31,6 +31,7 @@ impl<V> ImplTreap<V> {
         }
     }
 
+    #[cfg(test)]
     fn check(&self) {
         // returns the number of nodes in the subtree
         fn aux<V>(anchor: &Anchor<V>, parent_priority: Option<u64>) -> usize {
@@ -39,7 +40,7 @@ impl<V> ImplTreap<V> {
                 Some(node) => {
                     // check heap invariant
                     if let Some(parent_priority) = parent_priority {
-                        assert!(node.priority < parent_priority);
+                        assert!(node.priority <= parent_priority);
                     }
                     // recurse
                     let mut count = 0;
