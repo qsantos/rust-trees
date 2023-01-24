@@ -93,14 +93,14 @@ impl<K: Ord> RecursiveHeap<K> {
     }
 
     pub fn push(&mut self, key: K) {
-        fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: usize, depth: usize) {
+        fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: usize) {
             match anchor {
                 None => {
                     *anchor = Some(Box::new(Node::new(key)));
                 }
                 Some(node) => {
                     let dir = path % 2;
-                    bubble_up(&mut node.children[dir], key, path / 2, depth + 1);
+                    bubble_up(&mut node.children[dir], key, path / 2);
                     // swap if needed
                     let child = node.children[dir].as_mut().unwrap();
                     if child.key > node.key {
@@ -110,7 +110,7 @@ impl<K: Ord> RecursiveHeap<K> {
             }
         }
         let path = binary_path_to(self.size);
-        bubble_up(&mut self.root, key, path, 1);
+        bubble_up(&mut self.root, key, path);
         self.size += 1;
         self.check();
     }
