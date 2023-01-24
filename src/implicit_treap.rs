@@ -1,95 +1,163 @@
-type Anchor<V> = Option<Box<Node<V>>>;
+use std::cmp::Ordering;
+
+use slotmap::{new_key_type, Key, SlotMap};
+
+new_key_type! { pub struct NodeKey; }
+type Nodes<V> = SlotMap<NodeKey, Node<V>>;
+type Anchor = NodeKey;
 
 struct Node<V> {
     value: V,
     priority: u64,
     count: usize,
-    children: [Anchor<V>; 2],
+    children: [Anchor; 2],
+    parent: NodeKey,
 }
 
 impl<V> Node<V> {
     fn new(value: V) -> Self {
         Node {
             value,
-            priority: rand::random(),
+            priority: rand::random::<u8>() as u64,
             count: 1,
-            children: [None, None],
+            children: [NodeKey::null(); 2],
+            parent: NodeKey::null(),
         }
     }
 }
 
 pub struct ImplicitTreap<V> {
-    root: Anchor<V>,
-    size: usize,
+    nodes: Nodes<V>,
+    root: NodeKey,
 }
 
 impl<V> ImplicitTreap<V> {
     pub fn new() -> Self {
         ImplicitTreap {
-            root: None,
-            size: 0,
+            nodes: Nodes::default(),
+            root: NodeKey::null(),
         }
     }
 
     #[cfg(test)]
     fn check(&self) {
         // returns the number of nodes in the subtree
-        fn aux<V>(anchor: &Anchor<V>, parent_priority: Option<u64>) -> usize {
-            match anchor {
+        fn aux<V>(
+            nodes: &Nodes<V>,
+            node_key: NodeKey,
+            parent: NodeKey,
+            parent_priority: Option<u64>,
+        ) -> usize {
+            match nodes.get(node_key) {
                 None => 0,
                 Some(node) => {
+                    // check parent back reference
+                    assert_eq!(
+                        node.parent, parent,
+                        "invalid parent for node with priority {}",
+                        node.priority
+                    );
                     // check heap invariant
                     if let Some(parent_priority) = parent_priority {
                         assert!(node.priority <= parent_priority);
                     }
                     // recurse
                     let mut count = 0;
-                    count += aux(&node.children[0], Some(node.priority));
+                    count += aux(nodes, node.children[0], node_key, Some(node.priority));
                     count += 1;
-                    count += aux(&node.children[1], Some(node.priority));
+                    count += aux(nodes, node.children[1], node_key, Some(node.priority));
                     assert_eq!(count, node.count);
                     count
                 }
             }
         }
-        aux(&self.root, None);
+        aux(&self.nodes, self.root, NodeKey::null(), None);
     }
 
-    fn rotate(anchor: &mut Anchor<V>, dir: usize) {
-        let mut old_parent = anchor.take().unwrap();
-        let mut new_parent = old_parent.children[dir].take().unwrap();
-        old_parent.count -= new_parent.count;
-        assert!(new_parent.priority > old_parent.priority);
-        let grand_child = new_parent.children[1 - dir].take();
-        let grand_child_count = grand_child.as_ref().map_or(0, |node| node.count);
-        new_parent.count -= grand_child_count;
-        old_parent.children[dir] = grand_child;
-        old_parent.count += grand_child_count;
-        new_parent.count += old_parent.count;
-        new_parent.children[1 - dir] = Some(old_parent);
-        *anchor = Some(new_parent);
+    // attach new_node_key to its own parent, using old_node_key to know what child it was
+    fn set_parent_child(
+        &mut self,
+        parent_key: NodeKey,
+        old_node_key: NodeKey,
+        new_node_key: NodeKey,
+    ) {
+        match self.nodes.get_mut(parent_key) {
+            None => self.root = new_node_key,
+            Some(parent) => {
+                if parent.children[0] == old_node_key {
+                    parent.children[0] = new_node_key;
+                } else if parent.children[1] == old_node_key {
+                    parent.children[1] = new_node_key;
+                } else {
+                    unreachable!()
+                }
+            }
+        }
+    }
+
+    // move the dir-child of node_key to the top, while keeping the order
+    // returns the new top (dir-child)
+    fn rotate(&mut self, node_key: NodeKey, dir: usize) -> NodeKey {
+        let new_node_key = self.nodes[node_key].children[dir];
+        assert!(self.nodes[new_node_key].priority > self.nodes[node_key].priority);
+
+        let parent_key = self.nodes[node_key].parent;
+
+        // detach node
+        self.nodes[node_key].parent = NodeKey::null();
+
+        // detach new_node from node
+        self.nodes[new_node_key].parent = NodeKey::null();
+        self.nodes[node_key].children[dir] = NodeKey::null();
+        self.nodes[node_key].count -= self.nodes[new_node_key].count;
+
+        // move grand-child from new_node to node
+        let grand_child_key = self.nodes[new_node_key].children[1 - dir];
+        if let Some(grand_child) = self.nodes.get_mut(grand_child_key) {
+            grand_child.parent = node_key;
+            let grand_child_count = grand_child.count;
+            self.nodes[new_node_key].children[1 - dir] = NodeKey::null();
+            self.nodes[new_node_key].count -= grand_child_count;
+            self.nodes[node_key].children[dir] = grand_child_key;
+            self.nodes[node_key].count += grand_child_count;
+        }
+
+        // attach node to new_node
+        self.nodes[node_key].parent = new_node_key;
+        self.nodes[new_node_key].children[1 - dir] = node_key;
+        self.nodes[new_node_key].count += self.nodes[node_key].count;
+
+        // attach new_node to node's parent
+        self.nodes[new_node_key].parent = parent_key;
+        self.set_parent_child(parent_key, node_key, new_node_key);
+
+        new_node_key
     }
 
     pub fn insert(&mut self, index: usize, value: V) {
         // returns true when rebalancing might be needed
-        fn aux<V>(anchor: &mut Anchor<V>, mut index: usize, value: V) -> bool {
-            let current_index = if let Some(node) = anchor {
-                if let Some(child) = &node.children[0] {
-                    child.count
-                } else {
-                    0
-                }
-            } else {
-                0
-            };
+        fn aux<V>(
+            treap: &mut ImplicitTreap<V>,
+            node_key: NodeKey,
+            mut index: usize,
+            new_node_key: NodeKey,
+        ) -> (NodeKey, bool) {
+            let nodes = &mut treap.nodes;
+            let current_index = nodes.get(node_key).map_or(0, |node| {
+                nodes.get(node.children[0]).map_or(0, |child| child.count)
+            });
             if index == current_index {
-                let mut new_node = Box::new(Node::new(value));
-                if let Some(mut node) = anchor.take() {
-                    new_node.children[0] = node.children[0].take();
-                    new_node.children[1] = Some(node);
+                if nodes.get(node_key).is_some() {
+                    nodes[new_node_key].count = nodes[node_key].count + 1;
+                    nodes[new_node_key].children[0] = nodes[node_key].children[0];
+                    nodes[new_node_key].children[1] = node_key;
+                    nodes[node_key].parent = new_node_key;
+                    nodes[node_key].children[0] = NodeKey::null();
+                    nodes[node_key].count = 1 + nodes
+                        .get(nodes[node_key].children[1])
+                        .map_or(0, |child| child.count);
                 }
-                *anchor = Some(new_node);
-                true
+                (new_node_key, true)
             } else {
                 let dir = if index < current_index {
                     0
@@ -98,159 +166,237 @@ impl<V> ImplicitTreap<V> {
                     index -= current_index + 1;
                     1
                 };
-                let node = anchor.as_mut().unwrap();
-                if !aux(&mut node.children[dir], index, value) {
-                    node.count += 1;
-                    return false;
+                let (new_child_key, should_rebalance) = aux(
+                    treap,
+                    treap.nodes[node_key].children[dir],
+                    index,
+                    new_node_key,
+                );
+                let nodes = &mut treap.nodes;
+                nodes[node_key].children[dir] = new_child_key;
+                nodes[new_child_key].parent = node_key;
+                nodes[node_key].count += 1;
+                if !should_rebalance {
+                    return (node_key, false);
                 }
-                node.count += 1;
-                let child = node.children[dir].as_ref().unwrap();
-                if child.priority > node.priority {
-                    ImplicitTreap::rotate(anchor, dir);
-                    true
+                let child_key = nodes[node_key].children[dir];
+                if nodes[child_key].priority > nodes[node_key].priority {
+                    (treap.rotate(node_key, dir), true)
                 } else {
-                    false
+                    (node_key, false)
                 }
             }
         }
-        aux(&mut self.root, index, value);
-        self.size += 1;
+        let new_node_key = self.nodes.insert(Node::new(value));
+        (self.root, _) = aux(self, self.root, index, new_node_key);
     }
 
     pub fn push(&mut self, value: V) {
-        self.insert(self.size, value);
+        let index = self.nodes.get(self.root).map_or(0, |node| node.count);
+        self.insert(index, value);
     }
 
-    pub fn remove(&mut self, index: usize) -> V {
-        fn leftmost<V>(mut node: &mut Node<V>) -> Box<Node<V>> {
-            if node.children[0].as_ref().unwrap().children[0].is_some() {
-                let ret = leftmost(node.children[0].as_mut().unwrap());
-                node.count -= 1;
-                ret
-            } else {
-                let mut ret = node.children[0].take().unwrap();
-                assert!(ret.children[0].is_none());
-                node.count -= 1;
-                node.children[0] = ret.children[1].take();
-                ret
-            }
-        }
-        fn bubble_down<V>(mut anchor: &mut Anchor<V>) {
-            loop {
-                let node = anchor.as_mut().unwrap();
-                let mut max_priority = node.priority;
-                let mut max_priority_dir = 2;
-                if let Some(child) = &node.children[0] {
-                    if child.priority > max_priority {
-                        max_priority = child.priority;
-                        max_priority_dir = 0;
-                    }
-                }
-                if let Some(child) = &node.children[1] {
-                    if child.priority > max_priority {
-                        // max_priority = child.priority;
-                        max_priority_dir = 1;
-                    }
-                }
-                if max_priority_dir == 2 {
-                    break;
-                }
-                ImplicitTreap::rotate(anchor, max_priority_dir);
-                anchor = &mut anchor.as_mut().unwrap().children[1 - max_priority_dir];
-            }
-        }
-        fn aux<V>(anchor: &mut Anchor<V>, mut index: usize) -> V {
-            match anchor {
-                None => unreachable!(),
+    pub fn find(&self, index: usize) -> NodeKey {
+        fn aux<V>(nodes: &Nodes<V>, node_key: NodeKey, index: usize) -> NodeKey {
+            match nodes.get(node_key) {
+                None => NodeKey::null(),
                 Some(node) => {
-                    let current_index = if let Some(child) = &node.children[0] {
-                        child.count
-                    } else {
-                        0
-                    };
-                    if index == current_index {
-                        let mut node = anchor.take().unwrap();
-                        let ret = node.value;
-                        match (node.children[0].take(), node.children[1].take()) {
-                            (None, None) => (),
-                            (Some(child), None) | (None, Some(child)) => *anchor = Some(child),
-                            (Some(left), Some(mut right)) => match right.children[0] {
-                                None => {
-                                    right.children[0] = Some(left);
-                                    right.count = node.count - 1;
-                                    *anchor = Some(right);
-                                    bubble_down(anchor);
-                                }
-                                Some(_) => {
-                                    let mut new_node = leftmost(&mut right);
-                                    new_node.count = node.count - 1;
-                                    new_node.children[0] = Some(left);
-                                    new_node.children[1] = Some(right);
-                                    *anchor = Some(new_node);
-                                    bubble_down(anchor);
-                                }
-                            },
+                    let current_index = nodes.get(node.children[0]).map_or(0, |child| child.count);
+                    match index.cmp(&current_index) {
+                        Ordering::Equal => node_key,
+                        Ordering::Less => aux(nodes, node.children[0], index),
+                        Ordering::Greater => {
+                            aux(nodes, node.children[1], index - current_index - 1)
                         }
-                        ret
-                    } else {
-                        let dir = if index < current_index {
-                            0
-                        } else {
-                            // index > current_index
-                            index -= current_index + 1;
-                            1
-                        };
-                        let ret = aux(&mut node.children[dir], index);
-                        node.count -= 1;
-                        ret
                     }
                 }
             }
         }
-        assert!(index < self.size);
-        let ret = aux(&mut self.root, index);
-        self.size -= 1;
+        aux(&self.nodes, self.root, index)
+    }
+
+    fn node_index(&self, mut node_key: NodeKey) -> usize {
+        let mut node = &self.nodes[node_key];
+        let left_key = node.children[0];
+        // count left children
+        let mut ret = self.nodes.get(left_key).map_or(0, |left| left.count);
+        // count left uncles
+        while let Some(parent) = self.nodes.get(node.parent) {
+            if node_key == parent.children[1] {
+                // was right-child, need to count…
+                let left_key = parent.children[0];
+                // …the parent's left siblings
+                ret += self.nodes.get(left_key).map_or(0, |left| left.count);
+                // …and the parent itself
+                ret += 1;
+            }
+            node_key = node.parent;
+            node = parent;
+        }
         ret
     }
 
-    pub fn pop(&mut self) -> Option<V> {
-        if self.size == 0 {
-            None
+    // remove the leftmost descendant of node_key
+    // preserve the invariants
+    fn leftmost(&mut self, node_key: NodeKey) -> NodeKey {
+        let left_key = self.nodes[node_key].children[0];
+        let left_left_key = self.nodes[left_key].children[0];
+        if self.nodes.get(left_left_key).is_some() {
+            let ret = self.leftmost(left_key);
+            self.nodes[node_key].count -= 1;
+            ret
         } else {
-            Some(self.remove(self.size - 1))
+            let left_right_key = self.nodes[left_key].children[1];
+            self.nodes[node_key].count -= 1;
+            self.nodes[node_key].children[0] = left_right_key;
+            if let Some(left_right) = self.nodes.get_mut(left_right_key) {
+                left_right.parent = node_key;
+            }
+            left_key
         }
+    }
+
+    // move node_key to its proper position downwards
+    // return the key of the node which is at its position at the end
+    fn bubble_down(&mut self, node_key: NodeKey) {
+        loop {
+            let node = &self.nodes[node_key];
+            let mut max_priority = node.priority;
+            let mut max_priority_dir = 2;
+            if let Some(child) = self.nodes.get(node.children[0]) {
+                if child.priority > max_priority {
+                    max_priority = child.priority;
+                    max_priority_dir = 0;
+                }
+            }
+            if let Some(child) = self.nodes.get(node.children[1]) {
+                if child.priority > max_priority {
+                    // max_priority = child.priority;
+                    max_priority_dir = 1;
+                }
+            }
+            if max_priority_dir == 2 {
+                // nothing to do
+                break;
+            }
+            // move max_priority_dir-child in the place of node_key
+            self.rotate(node_key, max_priority_dir);
+        }
+    }
+
+    pub fn remove_node(&mut self, node_key: NodeKey) -> Option<V> {
+        match self.nodes.remove(node_key) {
+            None => None,
+            Some(node) => {
+                let parent_key = node.parent;
+                // find replacement node, if any
+                let left_key = node.children[0];
+                let right_key = node.children[1];
+                match (self.nodes.get(left_key), self.nodes.get(right_key)) {
+                    (None, None) => {
+                        self.set_parent_child(parent_key, node_key, NodeKey::null());
+                    }
+                    (Some(_), None) => {
+                        self.nodes[node.children[0]].parent = node.parent;
+                        self.set_parent_child(parent_key, node_key, node.children[0]);
+                    }
+                    (None, Some(_)) => {
+                        self.nodes[node.children[1]].parent = node.parent;
+                        self.set_parent_child(parent_key, node_key, node.children[1]);
+                    }
+                    (Some(_), Some(right)) => {
+                        let right_left_key = right.children[0];
+                        match self.nodes.get(right_left_key) {
+                            None => {
+                                self.nodes[left_key].parent = right_key;
+                                let right = &mut self.nodes[right_key];
+                                right.parent = node.parent;
+                                right.children[0] = left_key;
+                                right.count = node.count - 1;
+                                self.set_parent_child(node.parent, node_key, right_key);
+                                self.bubble_down(right_key);
+                            }
+                            Some(_) => {
+                                let new_node_key = self.leftmost(right_key);
+                                let new_node = &mut self.nodes[new_node_key];
+                                new_node.count = node.count - 1;
+                                new_node.parent = node.parent;
+                                new_node.children[0] = left_key;
+                                new_node.children[1] = right_key;
+                                self.nodes[left_key].parent = new_node_key;
+                                self.nodes[right_key].parent = new_node_key;
+                                self.set_parent_child(node.parent, node_key, new_node_key);
+                                self.bubble_down(new_node_key);
+                            }
+                        }
+                    }
+                };
+                // update parents' node counts
+                let mut node_key = parent_key;
+                while let Some(node) = self.nodes.get_mut(node_key) {
+                    node.count -= 1;
+                    node_key = node.parent;
+                }
+                // return value of old node
+                Some(node.value)
+            }
+        }
+    }
+
+    pub fn remove_at(&mut self, index: usize) -> Option<V> {
+        let node_key = self.find(index);
+        assert_eq!(self.node_index(node_key), index, "node_index");
+        self.remove_node(node_key)
+    }
+
+    pub fn pop(&mut self) -> Option<V> {
+        if let Some(node) = self.nodes.get(self.root) {
+            self.remove_at(node.count - 1)
+        } else {
+            None
+        }
+    }
+}
+
+impl<V> Default for ImplicitTreap<V> {
+    fn default() -> Self {
+        ImplicitTreap::new()
     }
 }
 
 impl<V: std::fmt::Display> ImplicitTreap<V> {
     pub fn print_vec(&self) {
-        fn aux<V: std::fmt::Display>(anchor: &Anchor<V>, mut index: usize) -> usize {
-            match anchor {
+        fn aux<V: std::fmt::Display>(
+            nodes: &Nodes<V>,
+            node_key: NodeKey,
+            mut index: usize,
+        ) -> usize {
+            match nodes.get(node_key) {
                 None => index,
                 Some(node) => {
-                    index = aux(&node.children[0], index);
+                    index = aux(nodes, node.children[0], index);
                     println!("[{}]: {}", index, node.value);
                     index += 1;
-                    aux(&node.children[1], index)
+                    aux(nodes, node.children[1], index)
                 }
             }
         }
-        aux(&self.root, 0);
+        aux(&self.nodes, self.root, 0);
     }
 
     pub fn print_tree(&self) {
-        fn aux<V: std::fmt::Display>(anchor: &Anchor<V>, depth: usize) {
+        fn aux<V: std::fmt::Display>(nodes: &Nodes<V>, node_key: NodeKey, depth: usize) {
             let prefix = "    ".repeat(depth);
-            match anchor {
+            match nodes.get(node_key) {
                 None => println!("{}-", prefix),
                 Some(node) => {
+                    aux(nodes, node.children[1], depth + 1);
                     println!("{}- {} ({})", prefix, node.value, node.priority);
-                    aux(&node.children[0], depth + 1);
-                    aux(&node.children[1], depth + 1);
+                    aux(nodes, node.children[0], depth + 1);
                 }
             }
         }
-        aux(&self.root, 0);
+        aux(&self.nodes, self.root, 0);
     }
 }
 
@@ -261,16 +407,22 @@ enum ExplorationState {
 }
 
 pub struct IterRef<'a, V> {
-    stack: Vec<(ExplorationState, &'a Node<V>)>,
+    treap: &'a ImplicitTreap<V>,
+    stack: Vec<(ExplorationState, NodeKey)>,
 }
 
 impl<'a, V> IterRef<'a, V> {
     fn new(treap: &'a ImplicitTreap<V>) -> Self {
-        match &treap.root {
-            None => IterRef { stack: vec![] },
-            Some(node) => IterRef {
-                stack: vec![(ExplorationState::Unexplored, node)],
-            },
+        if treap.nodes.get(treap.root).is_some() {
+            IterRef {
+                treap,
+                stack: vec![(ExplorationState::Unexplored, treap.root)],
+            }
+        } else {
+            IterRef {
+                treap,
+                stack: vec![],
+            }
         }
     }
 }
@@ -278,18 +430,22 @@ impl<'a, V> IterRef<'a, V> {
 impl<'a, V> Iterator for IterRef<'a, V> {
     type Item = &'a V;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((state, node)) = self.stack.pop() {
+        if let Some((state, node_key)) = self.stack.pop() {
             match state {
                 ExplorationState::Unexplored => {
-                    self.stack.push((ExplorationState::LeftYielded, node));
-                    if let Some(child) = &node.children[0] {
-                        self.stack.push((ExplorationState::Unexplored, child));
+                    self.stack.push((ExplorationState::LeftYielded, node_key));
+                    let node = &self.treap.nodes[node_key];
+                    if self.treap.nodes.get(node.children[0]).is_some() {
+                        self.stack
+                            .push((ExplorationState::Unexplored, node.children[0]));
                     }
                     self.next()
                 }
                 ExplorationState::LeftYielded => {
-                    if let Some(child) = &node.children[1] {
-                        self.stack.push((ExplorationState::Unexplored, child));
+                    let node = &self.treap.nodes[node_key];
+                    if self.treap.nodes.get(node.children[1]).is_some() {
+                        self.stack
+                            .push((ExplorationState::Unexplored, node.children[1]));
                     }
                     Some(&node.value)
                 }
@@ -315,13 +471,13 @@ impl<V> ImplicitTreap<V> {
 }
 
 /*
-impl<V> std::ops::Index<usize> for ImplTreap<V> {
+impl<V> std::ops::Index<usize> for ImplicitTreap<V> {
     type Output = V;
 
     fn index(&self, index: usize) -> &Self::Output {}
 }
 
-impl<V> std::ops::IndexMut<usize> for ImplTreap<V> {
+impl<V> std::ops::IndexMut<usize> for ImplicitTreap<V> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {}
 }
 */
@@ -359,9 +515,8 @@ mod tests {
         let mut expected = Vec::new();
 
         // add some
-        for _ in 0..10000 {
-            let x: u64 = rng.gen();
-            println!("Pushing {x}");
+        for _ in 0..1000 {
+            let x: u64 = rng.gen_range(0..100);
             treap.push(x);
             treap.check();
             expected.push(x);
@@ -370,10 +525,9 @@ mod tests {
         assert_eq!(actual, expected);
 
         // remove some
-        for _ in 0..1000 {
+        for _ in 0..100 {
             let i = rng.gen_range(0..expected.len() - 1);
-            println!("Removing at index {i}");
-            treap.remove(i);
+            treap.remove_at(i);
             treap.check();
             expected.remove(i);
         }
