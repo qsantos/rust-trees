@@ -235,13 +235,11 @@ impl<'a, K> Iterator for IterRef<'a, K> {
                         self.stack.push((ExplorationState::LeftYielded, node));
                         self.stack.push((ExplorationState::Unexplored, child));
                         self.next()
+                    } else if let Some(child) = &node.children[1] {
+                        self.stack.push((ExplorationState::Unexplored, child));
+                        Some(&node.key)
                     } else {
-                        if let Some(child) = &node.children[1] {
-                            self.stack.push((ExplorationState::Unexplored, child));
-                            Some(&node.key)
-                        } else {
-                            Some(&node.key)
-                        }
+                        Some(&node.key)
                     }
                 }
                 ExplorationState::LeftYielded => {
