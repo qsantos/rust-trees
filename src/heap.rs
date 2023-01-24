@@ -37,7 +37,7 @@ impl<K: std::fmt::Display> Heap<K> {
                 println!("{}-", prefix);
             }
         }
-        aux(&self, 0, 0);
+        aux(self, 0, 0);
     }
 }
 
@@ -54,7 +54,7 @@ impl<K: Ord> Heap<K> {
                 aux(heap, right(index), Some(key));
             }
         }
-        aux(&self, 0, None);
+        aux(self, 0, None);
     }
 
     pub fn push(&mut self, key: K) {
