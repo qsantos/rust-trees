@@ -122,7 +122,7 @@ mod tests {
         for v in [4, 2, 1, 3, 5, 7, 9, 6] {
             heap.push(v);
         }
-        while let Some(_) = heap.pop() {}
+        while heap.pop().is_some() {}
     }
 
     #[test]
