@@ -28,6 +28,12 @@ impl<K> RecursiveHeap<K> {
     }
 }
 
+impl<K> Default for RecursiveHeap<K> {
+    fn default() -> Self {
+        RecursiveHeap::new()
+    }
+}
+
 impl<K: std::fmt::Display> RecursiveHeap<K> {
     pub fn print(&self) {
         fn aux<K: std::fmt::Display>(anchor: &Anchor<K>, indent: usize) {

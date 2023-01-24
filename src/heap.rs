@@ -8,6 +8,12 @@ impl<K> Heap<K> {
     }
 }
 
+impl<K> Default for Heap<K> {
+    fn default() -> Self {
+        Heap::new()
+    }
+}
+
 fn left(index: usize) -> usize {
     2 * index + 1
 }

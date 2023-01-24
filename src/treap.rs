@@ -28,6 +28,12 @@ impl<K> Treap<K> {
     }
 }
 
+impl<K> Default for Treap<K> {
+    fn default() -> Self {
+        Treap::new()
+    }
+}
+
 impl<K: std::fmt::Display> Treap<K> {
     pub fn print(&self) {
         fn aux<K: std::fmt::Display>(anchor: &Anchor<K>, depth: usize) {
