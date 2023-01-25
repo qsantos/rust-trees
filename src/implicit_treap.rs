@@ -526,10 +526,21 @@ mod tests {
 
         // add some
         for _ in 0..1000 {
-            let x: u64 = rng.gen_range(0..100);
+            let x: u64 = rng.gen();
             treap.push(x);
             treap.check();
             expected.push(x);
+        }
+        let actual: Vec<_> = treap.iter().copied().collect();
+        assert_eq!(actual, expected);
+
+        // add some more
+        for _ in 0..100 {
+            let i: usize = rng.gen_range(0..expected.len());
+            let x: u64 = rng.gen();
+            treap.insert(i, x);
+            treap.check();
+            expected.insert(i, x);
         }
         let actual: Vec<_> = treap.iter().copied().collect();
         assert_eq!(actual, expected);
