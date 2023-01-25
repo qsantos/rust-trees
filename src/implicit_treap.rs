@@ -39,6 +39,17 @@ impl<V> ImplicitTreap<V> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        match self.nodes.get(self.root) {
+            None => 0,
+            Some(node) => node.count,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.nodes.get(self.root).is_none()
+    }
+
     #[cfg(test)]
     fn check(&self) {
         // returns the number of nodes in the subtree
