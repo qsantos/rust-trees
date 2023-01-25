@@ -63,21 +63,20 @@ impl<V> ImplicitTreap<V> {
                 None => 0,
                 Some(node) => {
                     // check parent back reference
-                    assert_eq!(
-                        node.parent, parent,
-                        "invalid parent for node with priority {}",
-                        node.priority
-                    );
+                    assert_eq!(node.parent, parent, "invalid parent for node {node_key:?}",);
                     // check heap invariant
                     if let Some(parent_priority) = parent_priority {
-                        assert!(node.priority <= parent_priority);
+                        assert!(
+                            node.priority <= parent_priority,
+                            "invalid priority for node {node_key:?}"
+                        );
                     }
                     // recurse
                     let mut count = 0;
                     count += aux(nodes, node.children[0], node_key, Some(node.priority));
                     count += 1;
                     count += aux(nodes, node.children[1], node_key, Some(node.priority));
-                    assert_eq!(count, node.count);
+                    assert_eq!(count, node.count, "invalid node count for {node_key:?}");
                     count
                 }
             }
