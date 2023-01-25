@@ -18,7 +18,7 @@ impl<V> Node<V> {
     fn new(value: V) -> Self {
         Node {
             value,
-            priority: rand::random::<u8>() as u64,
+            priority: rand::random(),
             count: 1,
             children: [NodeKey::null(); 2],
             parent: NodeKey::null(),
