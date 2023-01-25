@@ -480,17 +480,21 @@ impl<V> ImplicitTreap<V> {
     }
 }
 
-/*
-impl<V> std::ops::Index<usize> for ImplicitTreap<V> {
+impl<V: std::fmt::Display> std::ops::Index<usize> for ImplicitTreap<V> {
     type Output = V;
 
-    fn index(&self, index: usize) -> &Self::Output {}
+    fn index(&self, index: usize) -> &Self::Output {
+        let node_index = self.find(index);
+        &self.nodes[node_index].value
+    }
 }
 
-impl<V> std::ops::IndexMut<usize> for ImplicitTreap<V> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {}
+impl<V: std::fmt::Display> std::ops::IndexMut<usize> for ImplicitTreap<V> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        let node_index = self.find(index);
+        &mut self.nodes[node_index].value
+    }
 }
-*/
 
 #[cfg(test)]
 mod tests {
