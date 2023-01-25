@@ -397,7 +397,10 @@ impl<V: std::fmt::Display> ImplicitTreap<V> {
                 None => println!("{}-", prefix),
                 Some(node) => {
                     aux(nodes, node.children[1], depth + 1);
-                    println!("{}- {} ({})", prefix, node.value, node.priority);
+                    println!(
+                        "{}- {} (priority={}, count={}) [{:?} <- {:?}]",
+                        prefix, node.value, node.priority, node.count, node.parent, node_key
+                    );
                     aux(nodes, node.children[0], depth + 1);
                 }
             }
