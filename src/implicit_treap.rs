@@ -376,22 +376,18 @@ impl<V> Default for ImplicitTreap<V> {
 
 impl<V: std::fmt::Display> ImplicitTreap<V> {
     pub fn print_vec(&self) {
-        fn aux<V: std::fmt::Display>(
-            nodes: &Nodes<V>,
-            node_key: NodeKey,
-            mut index: usize,
-        ) -> usize {
+        fn aux<V: std::fmt::Display>(nodes: &Nodes<V>, node_key: NodeKey) {
             match nodes.get(node_key) {
-                None => index,
+                None => (),
                 Some(node) => {
-                    index = aux(nodes, node.children[0], index);
-                    println!("[{}]: {}", index, node.value);
-                    index += 1;
-                    aux(nodes, node.children[1], index)
+                    aux(nodes, node.children[0]);
+                    print!("{} [{:?}], ", node.value, node_key);
+                    aux(nodes, node.children[1])
                 }
             }
         }
-        aux(&self.nodes, self.root, 0);
+        aux(&self.nodes, self.root);
+        println!();
     }
 
     pub fn print_tree(&self) {
