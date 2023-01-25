@@ -226,7 +226,7 @@ impl<V> ImplicitTreap<V> {
         aux(&self.nodes, self.root, index)
     }
 
-    fn node_index(&self, mut node_key: NodeKey) -> usize {
+    pub fn node_index(&self, mut node_key: NodeKey) -> usize {
         let mut node = &self.nodes[node_key];
         let left_key = node.children[0];
         // count left children
