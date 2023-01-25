@@ -158,16 +158,25 @@ impl<V> ImplicitTreap<V> {
             });
             if index == current_index {
                 if nodes.get(node_key).is_some() {
+                    let left_key = nodes[node_key].children[0];
+                    let parent_key = nodes[node_key].parent;
+                    nodes[new_node_key].parent = parent_key;
                     nodes[new_node_key].count = nodes[node_key].count + 1;
-                    nodes[new_node_key].children[0] = nodes[node_key].children[0];
+                    nodes[new_node_key].children[0] = left_key;
                     nodes[new_node_key].children[1] = node_key;
+                    if let Some(left) = nodes.get_mut(left_key) {
+                        left.parent = new_node_key;
+                    }
                     nodes[node_key].parent = new_node_key;
                     nodes[node_key].children[0] = NodeKey::null();
                     nodes[node_key].count = 1 + nodes
                         .get(nodes[node_key].children[1])
                         .map_or(0, |child| child.count);
+                    treap.set_parent_child(parent_key, node_key, new_node_key);
+                    (treap.bubble_down(new_node_key), true)
+                } else {
+                    (new_node_key, true)
                 }
-                (new_node_key, true)
             } else {
                 let dir = if index < current_index {
                     0
@@ -190,7 +199,9 @@ impl<V> ImplicitTreap<V> {
                     return (node_key, false);
                 }
                 let child_key = nodes[node_key].children[dir];
+                assert_eq!(child_key, new_child_key);
                 if nodes[child_key].priority > nodes[node_key].priority {
+                    // bubble up
                     (treap.rotate(node_key, dir), true)
                 } else {
                     (node_key, false)
@@ -269,30 +280,30 @@ impl<V> ImplicitTreap<V> {
 
     // move node_key to its proper position downwards
     // return the key of the node which is at its position at the end
-    fn bubble_down(&mut self, node_key: NodeKey) {
-        loop {
-            let node = &self.nodes[node_key];
-            let mut max_priority = node.priority;
-            let mut max_priority_dir = 2;
-            if let Some(child) = self.nodes.get(node.children[0]) {
-                if child.priority > max_priority {
-                    max_priority = child.priority;
-                    max_priority_dir = 0;
-                }
+    fn bubble_down(&mut self, node_key: NodeKey) -> NodeKey {
+        let node = &self.nodes[node_key];
+        let mut max_priority = node.priority;
+        let mut max_priority_dir = 2;
+        if let Some(child) = self.nodes.get(node.children[0]) {
+            if child.priority > max_priority {
+                max_priority = child.priority;
+                max_priority_dir = 0;
             }
-            if let Some(child) = self.nodes.get(node.children[1]) {
-                if child.priority > max_priority {
-                    // max_priority = child.priority;
-                    max_priority_dir = 1;
-                }
-            }
-            if max_priority_dir == 2 {
-                // nothing to do
-                break;
-            }
-            // move max_priority_dir-child in the place of node_key
-            self.rotate(node_key, max_priority_dir);
         }
+        if let Some(child) = self.nodes.get(node.children[1]) {
+            if child.priority > max_priority {
+                // max_priority = child.priority;
+                max_priority_dir = 1;
+            }
+        }
+        if max_priority_dir == 2 {
+            // nothing to do
+            return node_key;
+        }
+        // move max_priority_dir-child in the place of node_key
+        let ret = self.rotate(node_key, max_priority_dir);
+        self.bubble_down(node_key);
+        ret
     }
 
     pub fn remove_node(&mut self, node_key: NodeKey) -> Option<V> {
