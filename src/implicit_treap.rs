@@ -144,7 +144,7 @@ impl<V> ImplicitTreap<V> {
         new_node_key
     }
 
-    pub fn insert(&mut self, index: usize, value: V) {
+    pub fn insert(&mut self, index: usize, value: V) -> NodeKey {
         // returns true when rebalancing might be needed
         fn aux<V>(
             treap: &mut ImplicitTreap<V>,
@@ -199,11 +199,12 @@ impl<V> ImplicitTreap<V> {
         }
         let new_node_key = self.nodes.insert(Node::new(value));
         (self.root, _) = aux(self, self.root, index, new_node_key);
+        new_node_key
     }
 
-    pub fn push(&mut self, value: V) {
+    pub fn push(&mut self, value: V) -> NodeKey {
         let index = self.nodes.get(self.root).map_or(0, |node| node.count);
-        self.insert(index, value);
+        self.insert(index, value)
     }
 
     pub fn find(&self, index: usize) -> NodeKey {
