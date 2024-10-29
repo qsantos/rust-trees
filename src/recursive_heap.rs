@@ -116,10 +116,7 @@ impl<K: Ord> RecursiveHeap<K> {
     }
 
     pub fn peek(&self) -> Option<&K> {
-        match &self.root {
-            None => None,
-            Some(node) => Some(&node.key),
-        }
+        Some(&self.root.as_ref()?.key)
     }
 
     pub fn pop(&mut self) -> Option<K> {
