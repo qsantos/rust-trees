@@ -148,24 +148,20 @@ impl<K: Ord> RecursiveHeap<K> {
                 bubble_down(child);
             }
         }
-        match &mut self.root {
-            None => None,
-            Some(node) => {
-                let ret = if self.size == 1 {
-                    self.size -= 1;
-                    Some(self.root.take().unwrap().key)
-                } else {
-                    self.size -= 1;
-                    let path = binary_path_to(self.size);
-                    let mut ret = last_key(node, path);
-                    std::mem::swap(&mut ret, &mut node.key);
-                    bubble_down(node);
-                    Some(ret)
-                };
-                self.check();
-                ret
-            }
-        }
+        let node = self.root.as_mut()?;
+        let ret = if self.size == 1 {
+            self.size -= 1;
+            Some(self.root.take().unwrap().key)
+        } else {
+            self.size -= 1;
+            let path = binary_path_to(self.size);
+            let mut ret = last_key(node, path);
+            std::mem::swap(&mut ret, &mut node.key);
+            bubble_down(node);
+            Some(ret)
+        };
+        self.check();
+        ret
     }
 }
 
