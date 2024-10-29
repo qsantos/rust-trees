@@ -40,9 +40,10 @@ impl<V> ImplicitTreap<V> {
     }
 
     pub fn len(&self) -> usize {
-        match self.nodes.get(self.root) {
-            None => 0,
-            Some(node) => node.count,
+        if let Some(node) = self.nodes.get(self.root) {
+            node.count
+        } else {
+            0
         }
     }
 
@@ -59,26 +60,25 @@ impl<V> ImplicitTreap<V> {
             parent: NodeKey,
             parent_priority: Option<u64>,
         ) -> usize {
-            match nodes.get(node_key) {
-                None => 0,
-                Some(node) => {
-                    // check parent back reference
-                    assert_eq!(node.parent, parent, "invalid parent for node {node_key:?}",);
-                    // check heap invariant
-                    if let Some(parent_priority) = parent_priority {
-                        assert!(
-                            node.priority <= parent_priority,
-                            "invalid priority for node {node_key:?}"
-                        );
-                    }
-                    // recurse
-                    let mut count = 0;
-                    count += aux(nodes, node.children[0], node_key, Some(node.priority));
-                    count += 1;
-                    count += aux(nodes, node.children[1], node_key, Some(node.priority));
-                    assert_eq!(count, node.count, "invalid node count for {node_key:?}");
-                    count
+            if let Some(node) = nodes.get(node_key) {
+                // check parent back reference
+                assert_eq!(node.parent, parent, "invalid parent for node {node_key:?}",);
+                // check heap invariant
+                if let Some(parent_priority) = parent_priority {
+                    assert!(
+                        node.priority <= parent_priority,
+                        "invalid priority for node {node_key:?}"
+                    );
                 }
+                // recurse
+                let mut count = 0;
+                count += aux(nodes, node.children[0], node_key, Some(node.priority));
+                count += 1;
+                count += aux(nodes, node.children[1], node_key, Some(node.priority));
+                assert_eq!(count, node.count, "invalid node count for {node_key:?}");
+                count
+            } else {
+                0
             }
         }
         aux(&self.nodes, self.root, NodeKey::null(), None);
@@ -91,17 +91,16 @@ impl<V> ImplicitTreap<V> {
         old_node_key: NodeKey,
         new_node_key: NodeKey,
     ) {
-        match self.nodes.get_mut(parent_key) {
-            None => self.root = new_node_key,
-            Some(parent) => {
-                if parent.children[0] == old_node_key {
-                    parent.children[0] = new_node_key;
-                } else if parent.children[1] == old_node_key {
-                    parent.children[1] = new_node_key;
-                } else {
-                    unreachable!()
-                }
+        if let Some(parent) = self.nodes.get_mut(parent_key) {
+            if parent.children[0] == old_node_key {
+                parent.children[0] = new_node_key;
+            } else if parent.children[1] == old_node_key {
+                parent.children[1] = new_node_key;
+            } else {
+                unreachable!()
             }
+        } else {
+            self.root = new_node_key
         }
     }
 
@@ -220,18 +219,15 @@ impl<V> ImplicitTreap<V> {
 
     pub fn find(&self, index: usize) -> NodeKey {
         fn aux<V>(nodes: &Nodes<V>, node_key: NodeKey, index: usize) -> NodeKey {
-            match nodes.get(node_key) {
-                None => NodeKey::null(),
-                Some(node) => {
-                    let current_index = nodes.get(node.children[0]).map_or(0, |child| child.count);
-                    match index.cmp(&current_index) {
-                        Ordering::Equal => node_key,
-                        Ordering::Less => aux(nodes, node.children[0], index),
-                        Ordering::Greater => {
-                            aux(nodes, node.children[1], index - current_index - 1)
-                        }
-                    }
+            if let Some(node) = nodes.get(node_key) {
+                let current_index = nodes.get(node.children[0]).map_or(0, |child| child.count);
+                match index.cmp(&current_index) {
+                    Ordering::Equal => node_key,
+                    Ordering::Less => aux(nodes, node.children[0], index),
+                    Ordering::Greater => aux(nodes, node.children[1], index - current_index - 1),
                 }
+            } else {
+                NodeKey::null()
             }
         }
         aux(&self.nodes, self.root, index)
@@ -379,13 +375,10 @@ impl<V> Default for ImplicitTreap<V> {
 impl<V: std::fmt::Display> ImplicitTreap<V> {
     pub fn print_vec(&self) {
         fn aux<V: std::fmt::Display>(nodes: &Nodes<V>, node_key: NodeKey) {
-            match nodes.get(node_key) {
-                None => (),
-                Some(node) => {
-                    aux(nodes, node.children[0]);
-                    print!("{} [{:?}], ", node.value, node_key);
-                    aux(nodes, node.children[1])
-                }
+            if let Some(node) = nodes.get(node_key) {
+                aux(nodes, node.children[0]);
+                print!("{} [{:?}], ", node.value, node_key);
+                aux(nodes, node.children[1])
             }
         }
         aux(&self.nodes, self.root);
@@ -395,16 +388,15 @@ impl<V: std::fmt::Display> ImplicitTreap<V> {
     pub fn print_tree(&self) {
         fn aux<V: std::fmt::Display>(nodes: &Nodes<V>, node_key: NodeKey, depth: usize) {
             let prefix = "    ".repeat(depth);
-            match nodes.get(node_key) {
-                None => println!("{}-", prefix),
-                Some(node) => {
-                    aux(nodes, node.children[1], depth + 1);
-                    println!(
-                        "{}- {} (priority={}, count={}) [{:?} <- {:?}]",
-                        prefix, node.value, node.priority, node.count, node.parent, node_key
-                    );
-                    aux(nodes, node.children[0], depth + 1);
-                }
+            if let Some(node) = nodes.get(node_key) {
+                aux(nodes, node.children[1], depth + 1);
+                println!(
+                    "{}- {} (priority={}, count={}) [{:?} <- {:?}]",
+                    prefix, node.value, node.priority, node.count, node.parent, node_key
+                );
+                aux(nodes, node.children[0], depth + 1);
+            } else {
+                println!("{}-", prefix);
             }
         }
         aux(&self.nodes, self.root, 0);

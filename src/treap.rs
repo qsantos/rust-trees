@@ -38,13 +38,12 @@ impl<K: std::fmt::Display> Treap<K> {
     pub fn print(&self) {
         fn aux<K: std::fmt::Display>(anchor: &Anchor<K>, depth: usize) {
             let prefix = "    ".repeat(depth);
-            match anchor {
-                None => println!("{}-", prefix),
-                Some(node) => {
-                    println!("{}- {}", prefix, node.key);
-                    aux(&node.children[0], depth + 1);
-                    aux(&node.children[1], depth + 1);
-                }
+            if let Some(node) = anchor {
+                println!("{}- {}", prefix, node.key);
+                aux(&node.children[0], depth + 1);
+                aux(&node.children[1], depth + 1);
+            } else {
+                println!("{}-", prefix);
             }
         }
         aux(&self.root, 0)
@@ -59,25 +58,22 @@ impl<K: Ord> Treap<K> {
             max_key: Option<&K>,
             parent_priority: Option<u64>,
         ) {
-            match anchor {
-                None => (),
-                Some(node) => {
-                    // check this is a binary search tree
-                    if let Some(min_key) = min_key {
-                        assert!(node.key > *min_key);
-                    }
-                    if let Some(max_key) = max_key {
-                        assert!(node.key < *max_key);
-                    }
-                    // check this is a heap
-                    if let Some(parent_priority) = parent_priority {
-                        assert!(node.priority <= parent_priority);
-                    }
-                    // recurse
-                    let prio = Some(node.priority);
-                    aux(&node.children[0], min_key, Some(&node.key), prio);
-                    aux(&node.children[1], Some(&node.key), max_key, prio);
+            if let Some(node) = anchor {
+                // check this is a binary search tree
+                if let Some(min_key) = min_key {
+                    assert!(node.key > *min_key);
                 }
+                if let Some(max_key) = max_key {
+                    assert!(node.key < *max_key);
+                }
+                // check this is a heap
+                if let Some(parent_priority) = parent_priority {
+                    assert!(node.priority <= parent_priority);
+                }
+                // recurse
+                let prio = Some(node.priority);
+                aux(&node.children[0], min_key, Some(&node.key), prio);
+                aux(&node.children[1], Some(&node.key), max_key, prio);
             }
         }
         aux(&self.root, None, None, None);
@@ -95,28 +91,25 @@ impl<K: Ord> Treap<K> {
     pub fn insert(&mut self, key: K) {
         // returns true when we should check the heap invariant
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
-            match anchor {
-                None => {
-                    *anchor = Some(Box::new(Node::new(key)));
+            if let Some(node) = anchor {
+                let dir = match key.cmp(&node.key) {
+                    Ordering::Less => 0,
+                    Ordering::Greater => 1,
+                    Ordering::Equal => return false,
+                };
+                if !aux(&mut node.children[dir], key) {
+                    return false;
+                }
+                if node.children[dir].as_ref().unwrap().priority > node.priority {
+                    // bubble up
+                    Treap::rotate(anchor, dir);
                     true
+                } else {
+                    false
                 }
-                Some(node) => {
-                    let dir = match key.cmp(&node.key) {
-                        Ordering::Less => 0,
-                        Ordering::Greater => 1,
-                        Ordering::Equal => return false,
-                    };
-                    if !aux(&mut node.children[dir], key) {
-                        return false;
-                    }
-                    if node.children[dir].as_ref().unwrap().priority > node.priority {
-                        // bubble up
-                        Treap::rotate(anchor, dir);
-                        true
-                    } else {
-                        false
-                    }
-                }
+            } else {
+                *anchor = Some(Box::new(Node::new(key)));
+                true
             }
         }
         aux(&mut self.root, key);
@@ -125,13 +118,14 @@ impl<K: Ord> Treap<K> {
 
     pub fn contains(&self, key: K) -> bool {
         fn aux<K: Ord>(anchor: &Anchor<K>, key: K) -> bool {
-            match anchor {
-                None => false,
-                Some(node) => match key.cmp(&node.key) {
+            if let Some(node) = anchor {
+                match key.cmp(&node.key) {
                     Ordering::Less => aux(&node.children[0], key),
                     Ordering::Greater => aux(&node.children[1], key),
                     Ordering::Equal => true,
-                },
+                }
+            } else {
+                false
             }
         }
         aux(&self.root, key)
@@ -173,9 +167,8 @@ impl<K: Ord> Treap<K> {
             }
         }
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) {
-            match anchor {
-                None => (),
-                Some(node) => match key.cmp(&node.key) {
+            if let Some(node) = anchor {
+                match key.cmp(&node.key) {
                     Ordering::Less => aux(&mut node.children[0], key),
                     Ordering::Greater => aux(&mut node.children[1], key),
                     Ordering::Equal => match (node.children[0].take(), node.children[1].take()) {
@@ -196,7 +189,7 @@ impl<K: Ord> Treap<K> {
                             }
                         }
                     },
-                },
+                }
             }
         }
         aux(&mut self.root, key);
@@ -216,11 +209,12 @@ pub struct IterRef<'a, K> {
 
 impl<'a, K> IterRef<'a, K> {
     fn new(treap: &'a Treap<K>) -> Self {
-        match &treap.root {
-            None => IterRef { stack: vec![] },
-            Some(node) => IterRef {
+        if let Some(node) = &treap.root {
+            IterRef {
                 stack: vec![(ExplorationState::Unexplored, node)],
-            },
+            }
+        } else {
+            IterRef { stack: vec![] }
         }
     }
 }
@@ -269,9 +263,10 @@ pub struct Iter<K> {
 
 impl<K> Iter<K> {
     fn new(treap: Treap<K>) -> Self {
-        match treap.root {
-            None => Iter { stack: vec![] },
-            Some(node) => Iter { stack: vec![node] },
+        if let Some(node) = treap.root {
+            Iter { stack: vec![node] }
+        } else {
+            Iter { stack: vec![] }
         }
     }
 }

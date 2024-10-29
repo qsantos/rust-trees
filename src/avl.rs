@@ -74,13 +74,12 @@ impl<K: std::fmt::Display> Avl<K> {
     pub fn print(&self) {
         fn aux<K: std::fmt::Display>(anchor: &Anchor<K>, indent: usize) {
             let prefix = "    ".repeat(indent);
-            match anchor {
-                None => println!("{}-", prefix),
-                Some(node) => {
-                    println!("{}- {} ({:?})", prefix, node.key, node.longer_side);
-                    aux(&node.children[0], indent + 1);
-                    aux(&node.children[1], indent + 1);
-                }
+            if let Some(node) = anchor {
+                println!("{}- {} ({:?})", prefix, node.key, node.longer_side);
+                aux(&node.children[0], indent + 1);
+                aux(&node.children[1], indent + 1);
+            } else {
+                println!("{}-", prefix);
             }
         }
         aux(&self.root, 0);
@@ -91,25 +90,24 @@ impl<K: Ord> Avl<K> {
     fn check(&self) {
         // returns the height
         fn aux<K: Ord>(anchor: &Anchor<K>, min: Option<&K>, max: Option<&K>) -> i32 {
-            match anchor {
-                None => 1,
-                Some(node) => {
-                    if let Some(min) = min {
-                        assert!(node.key > *min);
-                    }
-                    if let Some(max) = max {
-                        assert!(node.key < *max);
-                    }
-                    let lh = aux(&node.children[0], min, Some(&node.key));
-                    let lr = aux(&node.children[1], Some(&node.key), max);
-                    match lr - lh {
-                        1 => assert_eq!(node.longer_side, NodeDirection::Right),
-                        -1 => assert_eq!(node.longer_side, NodeDirection::Left),
-                        0 => assert_eq!(node.longer_side, NodeDirection::None),
-                        _ => unreachable!(),
-                    }
-                    lh.max(lr) + 1
+            if let Some(node) = anchor {
+                if let Some(min) = min {
+                    assert!(node.key > *min);
                 }
+                if let Some(max) = max {
+                    assert!(node.key < *max);
+                }
+                let lh = aux(&node.children[0], min, Some(&node.key));
+                let lr = aux(&node.children[1], Some(&node.key), max);
+                match lr - lh {
+                    1 => assert_eq!(node.longer_side, NodeDirection::Right),
+                    -1 => assert_eq!(node.longer_side, NodeDirection::Left),
+                    0 => assert_eq!(node.longer_side, NodeDirection::None),
+                    _ => unreachable!(),
+                }
+                lh.max(lr) + 1
+            } else {
+                1
             }
         }
         aux(&self.root, None, None);
@@ -117,12 +115,13 @@ impl<K: Ord> Avl<K> {
 
     pub fn contains(&self, key: K) -> bool {
         fn aux<K: Ord>(anchor: &Anchor<K>, key: K) -> bool {
-            match anchor {
-                None => false,
-                Some(node) => match node.dir(&key) {
+            if let Some(node) = anchor {
+                match node.dir(&key) {
                     NodeDirection::None => true,
                     dir => aux(&node.children[dir as usize], key),
-                },
+                }
+            } else {
+                false
             }
         }
         aux(&self.root, key)
@@ -209,12 +208,8 @@ impl<K: Ord> Avl<K> {
     pub fn insert(&mut self, key: K) {
         // returns whether the height has increased
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
-            match anchor {
-                None => {
-                    *anchor = Some(Box::new(Node::new(key)));
-                    true
-                }
-                Some(node) => match node.dir(&key) {
+            if let Some(node) = anchor {
+                match node.dir(&key) {
                     NodeDirection::None => false,
                     dir => {
                         if !aux(&mut node.children[dir as usize], key) {
@@ -223,7 +218,10 @@ impl<K: Ord> Avl<K> {
                         // the height has increased, we need to rebalance
                         Avl::rebalance(anchor, dir)
                     }
-                },
+                }
+            } else {
+                *anchor = Some(Box::new(Node::new(key)));
+                true
             }
         }
         aux(&mut self.root, key);
@@ -261,9 +259,8 @@ impl<K: Ord> Avl<K> {
         }
         // returns whether the height has decreased
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
-            match anchor {
-                None => false,
-                Some(node) => match node.dir(&key) {
+            if let Some(node) = anchor {
+                match node.dir(&key) {
                     NodeDirection::None => {
                         match (node.children[0].take(), node.children[1].take()) {
                             (None, None) => {
@@ -311,7 +308,9 @@ impl<K: Ord> Avl<K> {
                         // the height has decreased, we need to rebalance
                         !Avl::rebalance(anchor, !dir)
                     }
-                },
+                }
+            } else {
+                false
             }
         }
         aux(&mut self.root, key);
@@ -348,9 +347,8 @@ impl<'a, K> Iterator for IterRef<'a, K> {
     fn next(&mut self) -> Option<Self::Item> {
         let stack = &mut self.stack;
         let (state, anchor) = stack.pop()?;
-        match anchor {
-            None => self.next(),
-            Some(node) => match state {
+        if let Some(node) = anchor {
+            match state {
                 ExplorationState::Unexplored => {
                     stack.push((ExplorationState::YieldedLeft, anchor));
                     stack.push((ExplorationState::Unexplored, &node.children[0]));
@@ -360,7 +358,9 @@ impl<'a, K> Iterator for IterRef<'a, K> {
                     stack.push((ExplorationState::Unexplored, &node.children[1]));
                     Some(&node.key)
                 }
-            },
+            }
+        } else {
+            self.next()
         }
     }
 }
@@ -392,17 +392,16 @@ impl<K> Iterator for Iter<K> {
     fn next(&mut self) -> Option<Self::Item> {
         let stack = &mut self.stack;
         let anchor = stack.pop()?;
-        match anchor {
-            None => self.next(),
-            Some(mut node) => {
-                if let Some(left) = node.children[0].take() {
-                    stack.push(Some(node));
-                    stack.push(Some(left));
-                    return self.next();
-                }
-                stack.push(node.children[1].take());
-                Some(node.key)
+        if let Some(mut node) = anchor {
+            if let Some(left) = node.children[0].take() {
+                stack.push(Some(node));
+                stack.push(Some(left));
+                return self.next();
             }
+            stack.push(node.children[1].take());
+            Some(node.key)
+        } else {
+            self.next()
         }
     }
 }

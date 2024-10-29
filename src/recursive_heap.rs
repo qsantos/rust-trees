@@ -38,13 +38,12 @@ impl<K: std::fmt::Display> RecursiveHeap<K> {
     pub fn print(&self) {
         fn aux<K: std::fmt::Display>(anchor: &Anchor<K>, indent: usize) {
             let prefix = "    ".repeat(indent);
-            match anchor {
-                None => println!("{}-", prefix),
-                Some(node) => {
-                    println!("{}- {}", prefix, node.key);
-                    aux(&node.children[0], indent + 1);
-                    aux(&node.children[1], indent + 1);
-                }
+            if let Some(node) = anchor {
+                println!("{}- {}", prefix, node.key);
+                aux(&node.children[0], indent + 1);
+                aux(&node.children[1], indent + 1);
+            } else {
+                println!("{}-", prefix);
             }
         }
         aux(&self.root, 0);
@@ -71,21 +70,20 @@ impl<K: Ord> RecursiveHeap<K> {
     fn check(&self) {
         // returns the number of nodes
         fn aux<K: Ord>(anchor: &Anchor<K>, parent_key: Option<&K>) -> usize {
-            match anchor {
-                None => 0,
-                Some(node) => {
-                    // ensure order is correct
-                    if let Some(parent_key) = parent_key {
-                        assert!(node.key < *parent_key);
-                    }
-                    // ensure the tree is complete
-                    if node.children[0].is_none() {
-                        assert!(node.children[1].is_none());
-                    }
-                    // recurse and return the height
-                    1 + aux(&node.children[0], Some(&node.key))
-                        + aux(&node.children[1], Some(&node.key))
+            if let Some(node) = anchor {
+                // ensure order is correct
+                if let Some(parent_key) = parent_key {
+                    assert!(node.key < *parent_key);
                 }
+                // ensure the tree is complete
+                if node.children[0].is_none() {
+                    assert!(node.children[1].is_none());
+                }
+                // recurse and return the height
+                1 + aux(&node.children[0], Some(&node.key))
+                    + aux(&node.children[1], Some(&node.key))
+            } else {
+                0
             }
         }
         let size = aux(&self.root, None);
@@ -94,19 +92,16 @@ impl<K: Ord> RecursiveHeap<K> {
 
     pub fn push(&mut self, key: K) {
         fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: usize) {
-            match anchor {
-                None => {
-                    *anchor = Some(Box::new(Node::new(key)));
+            if let Some(node) = anchor {
+                let dir = path % 2;
+                bubble_up(&mut node.children[dir], key, path / 2);
+                // swap if needed
+                let child = node.children[dir].as_mut().unwrap();
+                if child.key > node.key {
+                    std::mem::swap(&mut child.key, &mut node.key);
                 }
-                Some(node) => {
-                    let dir = path % 2;
-                    bubble_up(&mut node.children[dir], key, path / 2);
-                    // swap if needed
-                    let child = node.children[dir].as_mut().unwrap();
-                    if child.key > node.key {
-                        std::mem::swap(&mut child.key, &mut node.key);
-                    }
-                }
+            } else {
+                *anchor = Some(Box::new(Node::new(key)));
             }
         }
         let path = binary_path_to(self.size);
