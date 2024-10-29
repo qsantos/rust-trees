@@ -228,31 +228,28 @@ impl<'a, K> IterRef<'a, K> {
 impl<'a, K> Iterator for IterRef<'a, K> {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((state, node)) = self.stack.pop() {
-            match state {
-                ExplorationState::Unexplored => {
-                    if let Some(child) = &node.children[0] {
-                        self.stack.push((ExplorationState::LeftYielded, node));
-                        self.stack.push((ExplorationState::Unexplored, child));
-                        self.next()
-                    } else if let Some(child) = &node.children[1] {
-                        self.stack.push((ExplorationState::Unexplored, child));
-                        Some(&node.key)
-                    } else {
-                        Some(&node.key)
-                    }
-                }
-                ExplorationState::LeftYielded => {
-                    if let Some(child) = &node.children[1] {
-                        self.stack.push((ExplorationState::Unexplored, child));
-                        Some(&node.key)
-                    } else {
-                        Some(&node.key)
-                    }
+        let (state, node) = self.stack.pop()?;
+        match state {
+            ExplorationState::Unexplored => {
+                if let Some(child) = &node.children[0] {
+                    self.stack.push((ExplorationState::LeftYielded, node));
+                    self.stack.push((ExplorationState::Unexplored, child));
+                    self.next()
+                } else if let Some(child) = &node.children[1] {
+                    self.stack.push((ExplorationState::Unexplored, child));
+                    Some(&node.key)
+                } else {
+                    Some(&node.key)
                 }
             }
-        } else {
-            None
+            ExplorationState::LeftYielded => {
+                if let Some(child) = &node.children[1] {
+                    self.stack.push((ExplorationState::Unexplored, child));
+                    Some(&node.key)
+                } else {
+                    Some(&node.key)
+                }
+            }
         }
     }
 }
@@ -283,20 +280,17 @@ impl<K> Iterator for Iter<K> {
     type Item = K;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(mut node) = self.stack.pop() {
-            if let Some(child) = node.children[0].take() {
-                self.stack.push(node);
-                self.stack.push(child);
-                self.next()
-            } else {
-                let k = node.key;
-                if let Some(child) = node.children[1].take() {
-                    self.stack.push(child);
-                }
-                Some(k)
-            }
+        let mut node = self.stack.pop()?;
+        if let Some(child) = node.children[0].take() {
+            self.stack.push(node);
+            self.stack.push(child);
+            self.next()
         } else {
-            None
+            let k = node.key;
+            if let Some(child) = node.children[1].take() {
+                self.stack.push(child);
+            }
+            Some(k)
         }
     }
 }

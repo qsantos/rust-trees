@@ -372,11 +372,8 @@ impl<V> ImplicitTreap<V> {
     }
 
     pub fn pop(&mut self) -> Option<V> {
-        if let Some(node) = self.nodes.get(self.root) {
-            self.remove_at(node.count - 1)
-        } else {
-            None
-        }
+        let node = self.nodes.get(self.root)?;
+        self.remove_at(node.count - 1)
     }
 }
 
@@ -451,28 +448,25 @@ impl<'a, V> IterRef<'a, V> {
 impl<'a, V> Iterator for IterRef<'a, V> {
     type Item = &'a V;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some((state, node_key)) = self.stack.pop() {
-            match state {
-                ExplorationState::Unexplored => {
-                    self.stack.push((ExplorationState::LeftYielded, node_key));
-                    let node = &self.treap.nodes[node_key];
-                    if self.treap.nodes.get(node.children[0]).is_some() {
-                        self.stack
-                            .push((ExplorationState::Unexplored, node.children[0]));
-                    }
-                    self.next()
+        let (state, node_key) = self.stack.pop()?;
+        match state {
+            ExplorationState::Unexplored => {
+                self.stack.push((ExplorationState::LeftYielded, node_key));
+                let node = &self.treap.nodes[node_key];
+                if self.treap.nodes.get(node.children[0]).is_some() {
+                    self.stack
+                        .push((ExplorationState::Unexplored, node.children[0]));
                 }
-                ExplorationState::LeftYielded => {
-                    let node = &self.treap.nodes[node_key];
-                    if self.treap.nodes.get(node.children[1]).is_some() {
-                        self.stack
-                            .push((ExplorationState::Unexplored, node.children[1]));
-                    }
-                    Some(&node.value)
-                }
+                self.next()
             }
-        } else {
-            None
+            ExplorationState::LeftYielded => {
+                let node = &self.treap.nodes[node_key];
+                if self.treap.nodes.get(node.children[1]).is_some() {
+                    self.stack
+                        .push((ExplorationState::Unexplored, node.children[1]));
+                }
+                Some(&node.value)
+            }
         }
     }
 }

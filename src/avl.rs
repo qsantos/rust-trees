@@ -347,23 +347,20 @@ impl<'a, K> Iterator for IterRef<'a, K> {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> {
         let stack = &mut self.stack;
-        if let Some((state, anchor)) = stack.pop() {
-            match anchor {
-                None => self.next(),
-                Some(node) => match state {
-                    ExplorationState::Unexplored => {
-                        stack.push((ExplorationState::YieldedLeft, anchor));
-                        stack.push((ExplorationState::Unexplored, &node.children[0]));
-                        self.next()
-                    }
-                    ExplorationState::YieldedLeft => {
-                        stack.push((ExplorationState::Unexplored, &node.children[1]));
-                        Some(&node.key)
-                    }
-                },
-            }
-        } else {
-            None
+        let (state, anchor) = stack.pop()?;
+        match anchor {
+            None => self.next(),
+            Some(node) => match state {
+                ExplorationState::Unexplored => {
+                    stack.push((ExplorationState::YieldedLeft, anchor));
+                    stack.push((ExplorationState::Unexplored, &node.children[0]));
+                    self.next()
+                }
+                ExplorationState::YieldedLeft => {
+                    stack.push((ExplorationState::Unexplored, &node.children[1]));
+                    Some(&node.key)
+                }
+            },
         }
     }
 }
@@ -394,21 +391,18 @@ impl<K> Iterator for Iter<K> {
     type Item = K;
     fn next(&mut self) -> Option<Self::Item> {
         let stack = &mut self.stack;
-        if let Some(anchor) = stack.pop() {
-            match anchor {
-                None => self.next(),
-                Some(mut node) => {
-                    if let Some(left) = node.children[0].take() {
-                        stack.push(Some(node));
-                        stack.push(Some(left));
-                        return self.next();
-                    }
-                    stack.push(node.children[1].take());
-                    Some(node.key)
+        let anchor = stack.pop()?;
+        match anchor {
+            None => self.next(),
+            Some(mut node) => {
+                if let Some(left) = node.children[0].take() {
+                    stack.push(Some(node));
+                    stack.push(Some(left));
+                    return self.next();
                 }
+                stack.push(node.children[1].take());
+                Some(node.key)
             }
-        } else {
-            None
         }
     }
 }
