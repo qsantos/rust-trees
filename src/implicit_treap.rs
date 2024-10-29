@@ -402,14 +402,9 @@ impl<V: std::fmt::Display> ImplicitTreap<V> {
 }
 
 // non-consuming iterator
-enum ExplorationState {
-    Unexplored,
-    LeftYielded,
-}
-
 pub struct IterRef<'a, V> {
     treap: &'a ImplicitTreap<V>,
-    stack: Vec<(ExplorationState, NodeKey)>,
+    stack: Vec<(bool, NodeKey)>,
 }
 
 impl<'a, V> IterRef<'a, V> {
@@ -417,7 +412,7 @@ impl<'a, V> IterRef<'a, V> {
         if treap.nodes.get(treap.root).is_some() {
             IterRef {
                 treap,
-                stack: vec![(ExplorationState::Unexplored, treap.root)],
+                stack: vec![(false, treap.root)],
             }
         } else {
             IterRef {
@@ -431,25 +426,20 @@ impl<'a, V> IterRef<'a, V> {
 impl<'a, V> Iterator for IterRef<'a, V> {
     type Item = &'a V;
     fn next(&mut self) -> Option<Self::Item> {
-        let (state, node_key) = self.stack.pop()?;
-        match state {
-            ExplorationState::Unexplored => {
-                self.stack.push((ExplorationState::LeftYielded, node_key));
-                let node = &self.treap.nodes[node_key];
-                if self.treap.nodes.get(node.children[0]).is_some() {
-                    self.stack
-                        .push((ExplorationState::Unexplored, node.children[0]));
-                }
-                self.next()
+        let (explored, node_key) = self.stack.pop()?;
+        if explored {
+            let node = &self.treap.nodes[node_key];
+            if self.treap.nodes.get(node.children[1]).is_some() {
+                self.stack.push((false, node.children[1]));
             }
-            ExplorationState::LeftYielded => {
-                let node = &self.treap.nodes[node_key];
-                if self.treap.nodes.get(node.children[1]).is_some() {
-                    self.stack
-                        .push((ExplorationState::Unexplored, node.children[1]));
-                }
-                Some(&node.value)
+            Some(&node.value)
+        } else {
+            self.stack.push((true, node_key));
+            let node = &self.treap.nodes[node_key];
+            if self.treap.nodes.get(node.children[0]).is_some() {
+                self.stack.push((false, node.children[0]));
             }
+            self.next()
         }
     }
 }

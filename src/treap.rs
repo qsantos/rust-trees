@@ -199,20 +199,15 @@ impl<K: Ord> Treap<K> {
 }
 
 // non-consuming iterator
-enum ExplorationState {
-    Unexplored,
-    LeftYielded,
-}
-
 pub struct IterRef<'a, K> {
-    stack: Vec<(ExplorationState, &'a Node<K>)>,
+    stack: Vec<(bool, &'a Node<K>)>,
 }
 
 impl<'a, K> IterRef<'a, K> {
     fn new(treap: &'a Treap<K>) -> Self {
         if let Some(node) = &treap.root {
             IterRef {
-                stack: vec![(ExplorationState::Unexplored, node)],
+                stack: vec![(false, node)],
             }
         } else {
             IterRef { stack: vec![] }
@@ -223,27 +218,25 @@ impl<'a, K> IterRef<'a, K> {
 impl<'a, K> Iterator for IterRef<'a, K> {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> {
-        let (state, node) = self.stack.pop()?;
-        match state {
-            ExplorationState::Unexplored => {
-                if let Some(child) = &node.children[0] {
-                    self.stack.push((ExplorationState::LeftYielded, node));
-                    self.stack.push((ExplorationState::Unexplored, child));
-                    self.next()
-                } else if let Some(child) = &node.children[1] {
-                    self.stack.push((ExplorationState::Unexplored, child));
-                    Some(&node.key)
-                } else {
-                    Some(&node.key)
-                }
+        let (explored, node) = self.stack.pop()?;
+        #[allow(clippy::collapsible_else_if)] // clearer to see the two cases this way
+        if explored {
+            if let Some(child) = &node.children[1] {
+                self.stack.push((false, child));
+                Some(&node.key)
+            } else {
+                Some(&node.key)
             }
-            ExplorationState::LeftYielded => {
-                if let Some(child) = &node.children[1] {
-                    self.stack.push((ExplorationState::Unexplored, child));
-                    Some(&node.key)
-                } else {
-                    Some(&node.key)
-                }
+        } else {
+            if let Some(child) = &node.children[0] {
+                self.stack.push((true, node));
+                self.stack.push((false, child));
+                self.next()
+            } else if let Some(child) = &node.children[1] {
+                self.stack.push((false, child));
+                Some(&node.key)
+            } else {
+                Some(&node.key)
             }
         }
     }

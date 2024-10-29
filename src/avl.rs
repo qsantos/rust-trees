@@ -328,34 +328,25 @@ impl<K: Ord> FromIterator<K> for Avl<K> {
 }
 
 // non-consuming iterator
-
-enum ExplorationState {
-    Unexplored,
-    YieldedLeft,
-}
-
 pub struct IterRef<'a, K> {
-    stack: Vec<(ExplorationState, &'a Anchor<K>)>,
+    stack: Vec<(bool, &'a Anchor<K>)>,
 }
 
 impl<'a, K> Iterator for IterRef<'a, K> {
     type Item = &'a K;
     fn next(&mut self) -> Option<Self::Item> {
         let stack = &mut self.stack;
-        let (state, anchor) = stack.pop()?;
+        let (explored, anchor) = stack.pop()?;
         let Some(node) = anchor else {
             return self.next();
         };
-        match state {
-            ExplorationState::Unexplored => {
-                stack.push((ExplorationState::YieldedLeft, anchor));
-                stack.push((ExplorationState::Unexplored, &node.children[0]));
-                self.next()
-            }
-            ExplorationState::YieldedLeft => {
-                stack.push((ExplorationState::Unexplored, &node.children[1]));
-                Some(&node.key)
-            }
+        if explored {
+            stack.push((false, &node.children[1]));
+            Some(&node.key)
+        } else {
+            stack.push((true, anchor));
+            stack.push((false, &node.children[0]));
+            self.next()
         }
     }
 }
@@ -365,7 +356,7 @@ impl<'a, K> IntoIterator for &'a Avl<K> {
     type IntoIter = IterRef<'a, K>;
     fn into_iter(self) -> Self::IntoIter {
         IterRef {
-            stack: vec![(ExplorationState::Unexplored, &self.root)],
+            stack: vec![(false, &self.root)],
         }
     }
 }
