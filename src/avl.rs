@@ -90,38 +90,36 @@ impl<K: Ord> Avl<K> {
     fn check(&self) {
         // returns the height
         fn aux<K: Ord>(anchor: &Anchor<K>, min: Option<&K>, max: Option<&K>) -> i32 {
-            if let Some(node) = anchor {
-                if let Some(min) = min {
-                    assert!(node.key > *min);
-                }
-                if let Some(max) = max {
-                    assert!(node.key < *max);
-                }
-                let lh = aux(&node.children[0], min, Some(&node.key));
-                let lr = aux(&node.children[1], Some(&node.key), max);
-                match lr - lh {
-                    1 => assert_eq!(node.longer_side, NodeDirection::Right),
-                    -1 => assert_eq!(node.longer_side, NodeDirection::Left),
-                    0 => assert_eq!(node.longer_side, NodeDirection::None),
-                    _ => unreachable!(),
-                }
-                lh.max(lr) + 1
-            } else {
-                1
+            let Some(node) = anchor else {
+                return 1;
+            };
+            if let Some(min) = min {
+                assert!(node.key > *min);
             }
+            if let Some(max) = max {
+                assert!(node.key < *max);
+            }
+            let lh = aux(&node.children[0], min, Some(&node.key));
+            let lr = aux(&node.children[1], Some(&node.key), max);
+            match lr - lh {
+                1 => assert_eq!(node.longer_side, NodeDirection::Right),
+                -1 => assert_eq!(node.longer_side, NodeDirection::Left),
+                0 => assert_eq!(node.longer_side, NodeDirection::None),
+                _ => unreachable!(),
+            }
+            lh.max(lr) + 1
         }
         aux(&self.root, None, None);
     }
 
     pub fn contains(&self, key: K) -> bool {
         fn aux<K: Ord>(anchor: &Anchor<K>, key: K) -> bool {
-            if let Some(node) = anchor {
-                match node.dir(&key) {
-                    NodeDirection::None => true,
-                    dir => aux(&node.children[dir as usize], key),
-                }
-            } else {
-                false
+            let Some(node) = anchor else {
+                return false;
+            };
+            match node.dir(&key) {
+                NodeDirection::None => true,
+                dir => aux(&node.children[dir as usize], key),
             }
         }
         aux(&self.root, key)
@@ -208,20 +206,19 @@ impl<K: Ord> Avl<K> {
     pub fn insert(&mut self, key: K) {
         // returns whether the height has increased
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
-            if let Some(node) = anchor {
-                match node.dir(&key) {
-                    NodeDirection::None => false,
-                    dir => {
-                        if !aux(&mut node.children[dir as usize], key) {
-                            return false;
-                        }
-                        // the height has increased, we need to rebalance
-                        Avl::rebalance(anchor, dir)
-                    }
-                }
-            } else {
+            let Some(node) = anchor else {
                 *anchor = Some(Box::new(Node::new(key)));
-                true
+                return true;
+            };
+            match node.dir(&key) {
+                NodeDirection::None => false,
+                dir => {
+                    if !aux(&mut node.children[dir as usize], key) {
+                        return false;
+                    }
+                    // the height has increased, we need to rebalance
+                    Avl::rebalance(anchor, dir)
+                }
             }
         }
         aux(&mut self.root, key);
@@ -259,58 +256,57 @@ impl<K: Ord> Avl<K> {
         }
         // returns whether the height has decreased
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
-            if let Some(node) = anchor {
-                match node.dir(&key) {
-                    NodeDirection::None => {
-                        match (node.children[0].take(), node.children[1].take()) {
-                            (None, None) => {
-                                *anchor = None;
-                                true
-                            }
-                            (Some(left), None) => {
-                                *anchor = Some(left);
-                                true
-                            }
-                            (None, Some(right)) => {
+            let Some(node) = anchor else {
+                return false;
+            };
+            match node.dir(&key) {
+                NodeDirection::None => {
+                    match (node.children[0].take(), node.children[1].take()) {
+                        (None, None) => {
+                            *anchor = None;
+                            true
+                        }
+                        (Some(left), None) => {
+                            *anchor = Some(left);
+                            true
+                        }
+                        (None, Some(right)) => {
+                            *anchor = Some(right);
+                            true
+                        }
+                        (Some(left), Some(mut right)) => match right.children[0] {
+                            None => {
+                                right.children[0] = Some(left);
+                                right.longer_side = node.longer_side;
                                 *anchor = Some(right);
-                                true
+                                // we have reduced the height by one on the right, we need to rebalance
+                                !Avl::rebalance(anchor, NodeDirection::Left)
                             }
-                            (Some(left), Some(mut right)) => match right.children[0] {
-                                None => {
-                                    right.children[0] = Some(left);
-                                    right.longer_side = node.longer_side;
-                                    *anchor = Some(right);
+                            Some(_) => {
+                                let (mut new_node, depth) = leftmost(&mut right);
+                                new_node.longer_side = node.longer_side;
+                                new_node.children[0] = Some(left);
+                                new_node.children[1] = Some(right);
+                                // we might need to rebalance some nodes in the right subtree
+                                let ret = leftmost_rebalance(&mut new_node.children[1], depth);
+                                *anchor = Some(new_node);
+                                if ret {
                                     // we have reduced the height by one on the right, we need to rebalance
                                     !Avl::rebalance(anchor, NodeDirection::Left)
+                                } else {
+                                    false
                                 }
-                                Some(_) => {
-                                    let (mut new_node, depth) = leftmost(&mut right);
-                                    new_node.longer_side = node.longer_side;
-                                    new_node.children[0] = Some(left);
-                                    new_node.children[1] = Some(right);
-                                    // we might need to rebalance some nodes in the right subtree
-                                    let ret = leftmost_rebalance(&mut new_node.children[1], depth);
-                                    *anchor = Some(new_node);
-                                    if ret {
-                                        // we have reduced the height by one on the right, we need to rebalance
-                                        !Avl::rebalance(anchor, NodeDirection::Left)
-                                    } else {
-                                        false
-                                    }
-                                }
-                            },
-                        }
-                    }
-                    dir => {
-                        if !aux(&mut node.children[dir as usize], key) {
-                            return false;
-                        }
-                        // the height has decreased, we need to rebalance
-                        !Avl::rebalance(anchor, !dir)
+                            }
+                        },
                     }
                 }
-            } else {
-                false
+                dir => {
+                    if !aux(&mut node.children[dir as usize], key) {
+                        return false;
+                    }
+                    // the height has decreased, we need to rebalance
+                    !Avl::rebalance(anchor, !dir)
+                }
             }
         }
         aux(&mut self.root, key);
@@ -347,20 +343,19 @@ impl<'a, K> Iterator for IterRef<'a, K> {
     fn next(&mut self) -> Option<Self::Item> {
         let stack = &mut self.stack;
         let (state, anchor) = stack.pop()?;
-        if let Some(node) = anchor {
-            match state {
-                ExplorationState::Unexplored => {
-                    stack.push((ExplorationState::YieldedLeft, anchor));
-                    stack.push((ExplorationState::Unexplored, &node.children[0]));
-                    self.next()
-                }
-                ExplorationState::YieldedLeft => {
-                    stack.push((ExplorationState::Unexplored, &node.children[1]));
-                    Some(&node.key)
-                }
+        let Some(node) = anchor else {
+            return self.next();
+        };
+        match state {
+            ExplorationState::Unexplored => {
+                stack.push((ExplorationState::YieldedLeft, anchor));
+                stack.push((ExplorationState::Unexplored, &node.children[0]));
+                self.next()
             }
-        } else {
-            self.next()
+            ExplorationState::YieldedLeft => {
+                stack.push((ExplorationState::Unexplored, &node.children[1]));
+                Some(&node.key)
+            }
         }
     }
 }
@@ -392,17 +387,16 @@ impl<K> Iterator for Iter<K> {
     fn next(&mut self) -> Option<Self::Item> {
         let stack = &mut self.stack;
         let anchor = stack.pop()?;
-        if let Some(mut node) = anchor {
-            if let Some(left) = node.children[0].take() {
-                stack.push(Some(node));
-                stack.push(Some(left));
-                return self.next();
-            }
+        let Some(mut node) = anchor else {
+            return self.next();
+        };
+        let Some(left) = node.children[0].take() else {
             stack.push(node.children[1].take());
-            Some(node.key)
-        } else {
-            self.next()
-        }
+            return Some(node.key);
+        };
+        stack.push(Some(node));
+        stack.push(Some(left));
+        self.next()
     }
 }
 

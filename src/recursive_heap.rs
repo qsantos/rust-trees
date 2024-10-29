@@ -70,21 +70,19 @@ impl<K: Ord> RecursiveHeap<K> {
     fn check(&self) {
         // returns the number of nodes
         fn aux<K: Ord>(anchor: &Anchor<K>, parent_key: Option<&K>) -> usize {
-            if let Some(node) = anchor {
-                // ensure order is correct
-                if let Some(parent_key) = parent_key {
-                    assert!(node.key < *parent_key);
-                }
-                // ensure the tree is complete
-                if node.children[0].is_none() {
-                    assert!(node.children[1].is_none());
-                }
-                // recurse and return the height
-                1 + aux(&node.children[0], Some(&node.key))
-                    + aux(&node.children[1], Some(&node.key))
-            } else {
-                0
+            let Some(node) = anchor else {
+                return 0;
+            };
+            // ensure order is correct
+            if let Some(parent_key) = parent_key {
+                assert!(node.key < *parent_key);
             }
+            // ensure the tree is complete
+            if node.children[0].is_none() {
+                assert!(node.children[1].is_none());
+            }
+            // recurse and return the height
+            1 + aux(&node.children[0], Some(&node.key)) + aux(&node.children[1], Some(&node.key))
         }
         let size = aux(&self.root, None);
         assert_eq!(self.size, size);
@@ -92,16 +90,16 @@ impl<K: Ord> RecursiveHeap<K> {
 
     pub fn push(&mut self, key: K) {
         fn bubble_up<K: Ord>(anchor: &mut Anchor<K>, key: K, path: usize) {
-            if let Some(node) = anchor {
-                let dir = path % 2;
-                bubble_up(&mut node.children[dir], key, path / 2);
-                // swap if needed
-                let child = node.children[dir].as_mut().unwrap();
-                if child.key > node.key {
-                    std::mem::swap(&mut child.key, &mut node.key);
-                }
-            } else {
+            let Some(node) = anchor else {
                 *anchor = Some(Box::new(Node::new(key)));
+                return;
+            };
+            let dir = path % 2;
+            bubble_up(&mut node.children[dir], key, path / 2);
+            // swap if needed
+            let child = node.children[dir].as_mut().unwrap();
+            if child.key > node.key {
+                std::mem::swap(&mut child.key, &mut node.key);
             }
         }
         let path = binary_path_to(self.size);

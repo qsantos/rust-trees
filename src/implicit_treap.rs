@@ -60,26 +60,25 @@ impl<V> ImplicitTreap<V> {
             parent: NodeKey,
             parent_priority: Option<u64>,
         ) -> usize {
-            if let Some(node) = nodes.get(node_key) {
-                // check parent back reference
-                assert_eq!(node.parent, parent, "invalid parent for node {node_key:?}",);
-                // check heap invariant
-                if let Some(parent_priority) = parent_priority {
-                    assert!(
-                        node.priority <= parent_priority,
-                        "invalid priority for node {node_key:?}"
-                    );
-                }
-                // recurse
-                let mut count = 0;
-                count += aux(nodes, node.children[0], node_key, Some(node.priority));
-                count += 1;
-                count += aux(nodes, node.children[1], node_key, Some(node.priority));
-                assert_eq!(count, node.count, "invalid node count for {node_key:?}");
-                count
-            } else {
-                0
+            let Some(node) = nodes.get(node_key) else {
+                return 0;
+            };
+            // check parent back reference
+            assert_eq!(node.parent, parent, "invalid parent for node {node_key:?}",);
+            // check heap invariant
+            if let Some(parent_priority) = parent_priority {
+                assert!(
+                    node.priority <= parent_priority,
+                    "invalid priority for node {node_key:?}"
+                );
             }
+            // recurse
+            let mut count = 0;
+            count += aux(nodes, node.children[0], node_key, Some(node.priority));
+            count += 1;
+            count += aux(nodes, node.children[1], node_key, Some(node.priority));
+            assert_eq!(count, node.count, "invalid node count for {node_key:?}");
+            count
         }
         aux(&self.nodes, self.root, NodeKey::null(), None);
     }
@@ -219,15 +218,14 @@ impl<V> ImplicitTreap<V> {
 
     pub fn find(&self, index: usize) -> NodeKey {
         fn aux<V>(nodes: &Nodes<V>, node_key: NodeKey, index: usize) -> NodeKey {
-            if let Some(node) = nodes.get(node_key) {
-                let current_index = nodes.get(node.children[0]).map_or(0, |child| child.count);
-                match index.cmp(&current_index) {
-                    Ordering::Equal => node_key,
-                    Ordering::Less => aux(nodes, node.children[0], index),
-                    Ordering::Greater => aux(nodes, node.children[1], index - current_index - 1),
-                }
-            } else {
-                NodeKey::null()
+            let Some(node) = nodes.get(node_key) else {
+                return NodeKey::null();
+            };
+            let current_index = nodes.get(node.children[0]).map_or(0, |child| child.count);
+            match index.cmp(&current_index) {
+                Ordering::Equal => node_key,
+                Ordering::Less => aux(nodes, node.children[0], index),
+                Ordering::Greater => aux(nodes, node.children[1], index - current_index - 1),
             }
         }
         aux(&self.nodes, self.root, index)

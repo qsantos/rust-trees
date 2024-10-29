@@ -58,23 +58,24 @@ impl<K: Ord> Treap<K> {
             max_key: Option<&K>,
             parent_priority: Option<u64>,
         ) {
-            if let Some(node) = anchor {
-                // check this is a binary search tree
-                if let Some(min_key) = min_key {
-                    assert!(node.key > *min_key);
-                }
-                if let Some(max_key) = max_key {
-                    assert!(node.key < *max_key);
-                }
-                // check this is a heap
-                if let Some(parent_priority) = parent_priority {
-                    assert!(node.priority <= parent_priority);
-                }
-                // recurse
-                let prio = Some(node.priority);
-                aux(&node.children[0], min_key, Some(&node.key), prio);
-                aux(&node.children[1], Some(&node.key), max_key, prio);
+            let Some(node) = anchor else {
+                return;
+            };
+            // check this is a binary search tree
+            if let Some(min_key) = min_key {
+                assert!(node.key > *min_key);
             }
+            if let Some(max_key) = max_key {
+                assert!(node.key < *max_key);
+            }
+            // check this is a heap
+            if let Some(parent_priority) = parent_priority {
+                assert!(node.priority <= parent_priority);
+            }
+            // recurse
+            let prio = Some(node.priority);
+            aux(&node.children[0], min_key, Some(&node.key), prio);
+            aux(&node.children[1], Some(&node.key), max_key, prio);
         }
         aux(&self.root, None, None, None);
     }
@@ -91,25 +92,24 @@ impl<K: Ord> Treap<K> {
     pub fn insert(&mut self, key: K) {
         // returns true when we should check the heap invariant
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) -> bool {
-            if let Some(node) = anchor {
-                let dir = match key.cmp(&node.key) {
-                    Ordering::Less => 0,
-                    Ordering::Greater => 1,
-                    Ordering::Equal => return false,
-                };
-                if !aux(&mut node.children[dir], key) {
-                    return false;
-                }
-                if node.children[dir].as_ref().unwrap().priority > node.priority {
-                    // bubble up
-                    Treap::rotate(anchor, dir);
-                    true
-                } else {
-                    false
-                }
-            } else {
+            let Some(node) = anchor else {
                 *anchor = Some(Box::new(Node::new(key)));
+                return true;
+            };
+            let dir = match key.cmp(&node.key) {
+                Ordering::Less => 0,
+                Ordering::Greater => 1,
+                Ordering::Equal => return false,
+            };
+            if !aux(&mut node.children[dir], key) {
+                return false;
+            }
+            if node.children[dir].as_ref().unwrap().priority > node.priority {
+                // bubble up
+                Treap::rotate(anchor, dir);
                 true
+            } else {
+                false
             }
         }
         aux(&mut self.root, key);
@@ -167,29 +167,30 @@ impl<K: Ord> Treap<K> {
             }
         }
         fn aux<K: Ord>(anchor: &mut Anchor<K>, key: K) {
-            if let Some(node) = anchor {
-                match key.cmp(&node.key) {
-                    Ordering::Less => aux(&mut node.children[0], key),
-                    Ordering::Greater => aux(&mut node.children[1], key),
-                    Ordering::Equal => match (node.children[0].take(), node.children[1].take()) {
-                        (None, None) => *anchor = None,
-                        (Some(left), None) => *anchor = Some(left),
-                        (None, Some(right)) => *anchor = Some(right),
-                        (Some(left), Some(mut right)) => {
-                            if right.children[0].is_none() {
-                                right.children[0] = Some(left);
-                                *anchor = Some(right);
-                                bubble_down(anchor);
-                            } else {
-                                let mut new_node = leftmost(&mut right);
-                                new_node.children[0] = Some(left);
-                                new_node.children[1] = Some(right);
-                                *anchor = Some(new_node);
-                                bubble_down(anchor);
-                            }
+            let Some(node) = anchor else {
+                return;
+            };
+            match key.cmp(&node.key) {
+                Ordering::Less => aux(&mut node.children[0], key),
+                Ordering::Greater => aux(&mut node.children[1], key),
+                Ordering::Equal => match (node.children[0].take(), node.children[1].take()) {
+                    (None, None) => *anchor = None,
+                    (Some(left), None) => *anchor = Some(left),
+                    (None, Some(right)) => *anchor = Some(right),
+                    (Some(left), Some(mut right)) => {
+                        if right.children[0].is_none() {
+                            right.children[0] = Some(left);
+                            *anchor = Some(right);
+                            bubble_down(anchor);
+                        } else {
+                            let mut new_node = leftmost(&mut right);
+                            new_node.children[0] = Some(left);
+                            new_node.children[1] = Some(right);
+                            *anchor = Some(new_node);
+                            bubble_down(anchor);
                         }
-                    },
-                }
+                    }
+                },
             }
         }
         aux(&mut self.root, key);
