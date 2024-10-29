@@ -307,62 +307,58 @@ impl<V> ImplicitTreap<V> {
     }
 
     pub fn remove_node(&mut self, node_key: NodeKey) -> Option<V> {
-        match self.nodes.remove(node_key) {
-            None => None,
-            Some(node) => {
-                let parent_key = node.parent;
-                // find replacement node, if any
-                let left_key = node.children[0];
-                let right_key = node.children[1];
-                match (self.nodes.get(left_key), self.nodes.get(right_key)) {
-                    (None, None) => {
-                        self.set_parent_child(parent_key, node_key, NodeKey::null());
-                    }
-                    (Some(_), None) => {
-                        self.nodes[node.children[0]].parent = node.parent;
-                        self.set_parent_child(parent_key, node_key, node.children[0]);
-                    }
-                    (None, Some(_)) => {
-                        self.nodes[node.children[1]].parent = node.parent;
-                        self.set_parent_child(parent_key, node_key, node.children[1]);
-                    }
-                    (Some(_), Some(right)) => {
-                        let right_left_key = right.children[0];
-                        match self.nodes.get(right_left_key) {
-                            None => {
-                                self.nodes[left_key].parent = right_key;
-                                let right = &mut self.nodes[right_key];
-                                right.parent = node.parent;
-                                right.children[0] = left_key;
-                                right.count = node.count - 1;
-                                self.set_parent_child(node.parent, node_key, right_key);
-                                self.bubble_down(right_key);
-                            }
-                            Some(_) => {
-                                let new_node_key = self.leftmost(right_key);
-                                let new_node = &mut self.nodes[new_node_key];
-                                new_node.count = node.count - 1;
-                                new_node.parent = node.parent;
-                                new_node.children[0] = left_key;
-                                new_node.children[1] = right_key;
-                                self.nodes[left_key].parent = new_node_key;
-                                self.nodes[right_key].parent = new_node_key;
-                                self.set_parent_child(node.parent, node_key, new_node_key);
-                                self.bubble_down(new_node_key);
-                            }
-                        }
-                    }
-                };
-                // update parents' node counts
-                let mut node_key = parent_key;
-                while let Some(node) = self.nodes.get_mut(node_key) {
-                    node.count -= 1;
-                    node_key = node.parent;
-                }
-                // return value of old node
-                Some(node.value)
+        let node = self.nodes.remove(node_key)?;
+        let parent_key = node.parent;
+        // find replacement node, if any
+        let left_key = node.children[0];
+        let right_key = node.children[1];
+        match (self.nodes.get(left_key), self.nodes.get(right_key)) {
+            (None, None) => {
+                self.set_parent_child(parent_key, node_key, NodeKey::null());
             }
+            (Some(_), None) => {
+                self.nodes[node.children[0]].parent = node.parent;
+                self.set_parent_child(parent_key, node_key, node.children[0]);
+            }
+            (None, Some(_)) => {
+                self.nodes[node.children[1]].parent = node.parent;
+                self.set_parent_child(parent_key, node_key, node.children[1]);
+            }
+            (Some(_), Some(right)) => {
+                let right_left_key = right.children[0];
+                match self.nodes.get(right_left_key) {
+                    None => {
+                        self.nodes[left_key].parent = right_key;
+                        let right = &mut self.nodes[right_key];
+                        right.parent = node.parent;
+                        right.children[0] = left_key;
+                        right.count = node.count - 1;
+                        self.set_parent_child(node.parent, node_key, right_key);
+                        self.bubble_down(right_key);
+                    }
+                    Some(_) => {
+                        let new_node_key = self.leftmost(right_key);
+                        let new_node = &mut self.nodes[new_node_key];
+                        new_node.count = node.count - 1;
+                        new_node.parent = node.parent;
+                        new_node.children[0] = left_key;
+                        new_node.children[1] = right_key;
+                        self.nodes[left_key].parent = new_node_key;
+                        self.nodes[right_key].parent = new_node_key;
+                        self.set_parent_child(node.parent, node_key, new_node_key);
+                        self.bubble_down(new_node_key);
+                    }
+                }
+            }
+        };
+        // update parents' node counts
+        let mut node_key = parent_key;
+        while let Some(node) = self.nodes.get_mut(node_key) {
+            node.count -= 1;
+            node_key = node.parent;
         }
+        // return value of old node
+        Some(node.value)
     }
 
     pub fn remove_at(&mut self, index: usize) -> Option<V> {
