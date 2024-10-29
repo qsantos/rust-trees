@@ -326,28 +326,25 @@ impl<V> ImplicitTreap<V> {
             }
             (Some(_), Some(right)) => {
                 let right_left_key = right.children[0];
-                match self.nodes.get(right_left_key) {
-                    None => {
-                        self.nodes[left_key].parent = right_key;
-                        let right = &mut self.nodes[right_key];
-                        right.parent = node.parent;
-                        right.children[0] = left_key;
-                        right.count = node.count - 1;
-                        self.set_parent_child(node.parent, node_key, right_key);
-                        self.bubble_down(right_key);
-                    }
-                    Some(_) => {
-                        let new_node_key = self.leftmost(right_key);
-                        let new_node = &mut self.nodes[new_node_key];
-                        new_node.count = node.count - 1;
-                        new_node.parent = node.parent;
-                        new_node.children[0] = left_key;
-                        new_node.children[1] = right_key;
-                        self.nodes[left_key].parent = new_node_key;
-                        self.nodes[right_key].parent = new_node_key;
-                        self.set_parent_child(node.parent, node_key, new_node_key);
-                        self.bubble_down(new_node_key);
-                    }
+                if self.nodes.get(right_left_key).is_none() {
+                    self.nodes[left_key].parent = right_key;
+                    let right = &mut self.nodes[right_key];
+                    right.parent = node.parent;
+                    right.children[0] = left_key;
+                    right.count = node.count - 1;
+                    self.set_parent_child(node.parent, node_key, right_key);
+                    self.bubble_down(right_key);
+                } else {
+                    let new_node_key = self.leftmost(right_key);
+                    let new_node = &mut self.nodes[new_node_key];
+                    new_node.count = node.count - 1;
+                    new_node.parent = node.parent;
+                    new_node.children[0] = left_key;
+                    new_node.children[1] = right_key;
+                    self.nodes[left_key].parent = new_node_key;
+                    self.nodes[right_key].parent = new_node_key;
+                    self.set_parent_child(node.parent, node_key, new_node_key);
+                    self.bubble_down(new_node_key);
                 }
             }
         };
