@@ -73,7 +73,7 @@ impl<K: Ord> Heap<K> {
     }
 
     pub fn peek(&self) -> Option<&K> {
-        self.nodes.get(0)
+        self.nodes.first()
     }
 
     pub fn pop(&mut self) -> Option<K> {
